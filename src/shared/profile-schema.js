@@ -23,6 +23,7 @@ export function createEmptyProfile(id = "default", name = "默认求职资料") 
       name: "",
       pinyin: "",
       gender: "",
+      age: "",
       birthday: "",
       phone: "",
       email: "",

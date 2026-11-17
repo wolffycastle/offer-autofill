@@ -120,16 +120,21 @@ function renderProfileSelect() {
 }
 
 function renderPreferences() {
-  els.optUseLLM.checked = Boolean(appState.preferences.useLLM);
+  const llmReady = Boolean(appState.llmConfig.enabled && appState.llmConfig.baseUrl);
+  els.optUseLLM.checked = llmReady && Boolean(appState.preferences.useLLM);
+  els.optUseLLM.disabled = !llmReady;
+  els.optUseLLM.parentElement.title = llmReady
+    ? "本地规则未命中的字段交由大模型语义匹配"
+    : "已预留大模型接口，暂无 API 时默认仅使用本地规则；有 API 后可在「简历与设置」中开启";
   els.optAutoExpand.checked = Boolean(appState.preferences.autoExpandSections);
   els.optOverwrite.checked = Boolean(appState.preferences.overwrite);
 
-  if (appState.llmConfig.enabled && appState.llmConfig.baseUrl) {
+  if (llmReady) {
     els.llmStatusPill.className = "pill pill-ai";
     els.llmStatusPill.textContent = `AI 兜底 · ${appState.llmConfig.model || "已启用"}`;
   } else {
     els.llmStatusPill.className = "pill pill-muted";
-    els.llmStatusPill.textContent = "仅本地规则";
+    els.llmStatusPill.textContent = "仅本地规则（AI已预留）";
   }
 }
 

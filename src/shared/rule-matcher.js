@@ -429,6 +429,11 @@ const FIELD_RULES = [
     match: (t) => /(性别|gender|sex)/.test(t),
   },
   {
+    name: "年龄",
+    pathFn: () => "basic.age",
+    match: (t) => /(^年龄$|年龄|\bage\b)/.test(t) && !/(工龄|工作年限)/.test(t),
+  },
+  {
     name: "手机号",
     pathFn: () => "basic.phone",
     match: (t) =>
