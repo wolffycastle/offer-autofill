@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "网申一键填表助手 (OfferAutofill)",
+  "version": "0.1.0",
+  "description": "面向互联网大厂自研官网与通用网申表单的自动填表扩展：本地简历库，规则词典优先 + 可选大模型 API 语义兜底。",
+  "icons": {
+    "16": "assets/icon16.png",
+    "48": "assets/icon48.png",
+    "128": "assets/icon128.png"
+  },
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "网申一键填表助手",
+    "default_icon": {
+      "16": "assets/icon16.png",
+      "48": "assets/icon48.png",
+      "128": "assets/icon128.png"
+    }
+  },
+  "options_page": "src/options/options.html",
+  "background": {
+    "service_worker": "src/background/service-worker.js",
+    "type": "module"
+  },
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://*/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "commands": {
+    "quick-fill": {
+      "suggested_key": {
+        "default": "Alt+Shift+F"
+      },
+      "description": "一键智能填写当前网申表单"
+    }
+  }
+}

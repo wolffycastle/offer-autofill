@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>模拟大厂校招网申系统（含 React 受控组件与自定义下拉）</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #f3f4f6;
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+        color: #111827;
+        padding: 28px 16px 80px;
+      }
+      .container {
+        max-width: 860px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+      .banner {
+        background: linear-gradient(135deg, #1d4ed8, #4338ca);
+        color: #fff;
+        padding: 20px 24px;
+        border-radius: 14px;
+      }
+      .banner h1 {
+        margin: 0 0 6px;
+        font-size: 20px;
+      }
+      .banner p {
+        margin: 0;
+        font-size: 13px;
+        opacity: 0.9;
+      }
+      .section-card {
+        background: #fff;
+        border-radius: 12px;
+        border: 1px solid #e5e7eb;
+        padding: 20px 22px;
+      }
+      .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #f1f5f9;
+      }
+      .section-title {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 700;
+      }
+      .grid-2 {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }
+      .ant-form-item {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .ant-form-item-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: #374151;
+      }
+      .ant-form-item-required::before {
+        content: "* ";
+        color: #ef4444;
+      }
+      input[type="text"],
+      input[type="email"],
+      input[type="tel"],
+      input[type="password"],
+      input[type="month"],
+      input[type="date"],
+      textarea,
+      select {
+        width: 100%;
+        padding: 9px 11px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 13px;
+        font-family: inherit;
+        background: #fff;
+      }
+      .arco-select {
+        position: relative;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        padding: 9px 11px;
+        cursor: pointer;
+        background: #fff;
+        font-size: 13px;
+        min-height: 38px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .arco-select-view-value.placeholder {
+        color: #9ca3af;
+      }
+      .arco-select-popup {
+        position: fixed;
+        z-index: 99999;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.14);
+        padding: 4px;
+        min-width: 180px;
+        max-height: 220px;
+        overflow-y: auto;
+      }
+      .arco-select-option {
+        padding: 8px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 13px;
+      }
+      .arco-select-option:hover {
+        background: #eff6ff;
+        color: #1d4ed8;
+      }
+      .exp-card {
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 14px;
+        margin-bottom: 12px;
+      }
+      .radio-row {
+        display: flex;
+        gap: 16px;
+        padding: 6px 0;
+      }
+      .radio-row label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .btn-add {
+        background: #eff6ff;
+        color: #1d4ed8;
+        border: 1px dashed #93c5fd;
+        padding: 7px 14px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .submit-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #fff;
+        padding: 16px 22px;
+        border-radius: 12px;
+        border: 1px solid #e5e7eb;
+      }
+      .btn-submit {
+        background: #2563eb;
+        color: #fff;
+        border: none;
+        padding: 10px 24px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      #validationResult {
+        background: #0f172a;
+        color: #e2e8f0;
+        padding: 14px;
+        border-radius: 10px;
+        font-size: 12px;
+        white-space: pre-wrap;
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="banner">
+        <h1>星辰跳动 · 2026 届校招网申表（测试沙盒）</h1>
+        <p>本页面模拟国内互联网大厂常见的 React 受控组件、Portal 自定义下拉框、动态“+ 添加经历”与安全验证码边界。</p>
+      </div>
+
+      <!-- 1. 基本信息 -->
+      <section class="section-card" data-section="basic">
+        <div class="section-header">
+          <h2 class="section-title">基本信息</h2>
+        </div>
+        <div class="grid-2">
+          <div class="ant-form-item">
+            <label class="ant-form-item-label ant-form-item-required">姓名</label>
+            <input type="text" data-state-key="basic.name" placeholder="请输入真实姓名" />
+          </div>
+          <div class="ant-form-item">
+            <label class="ant-form-item-label">姓名拼音 / 英文名</label>
+            <input type="text" data-state-key="basic.pinyin" placeholder="例如 San Zhang" />
+          </div>
+          <div class="ant-form-item">
+            <label class="ant-form-item-label ant-form-item-required">性别</label>
+            <div class="radio-row" role="radiogroup" aria-label="性别">
+              <label><input type="radio" name="gender" value="男" /> 男</label>
+              <label><input type="radio" name="gender" value="女" /> 女</label>
+            </div>
+          </div>
+          <div class="ant-form-item">
+            <label class="ant-form-item-label ant-form-item-required">手机号码</label>
+            <input type="tel" data-state-key="basic.phone" placeholder="请输入11位手机号" />
+          </div>
+          <div class="ant-form-item">
+            <label class="ant-form-item-label ant-form-item-required">电子邮箱</label>
+            <input type="email" data-state-key="basic.email" placeholder="example@domain.com" />
+          </div>
+          <div class="ant-form-item">
+            <label class="ant-form-item-label">现居住城市</label>
+            <input type="text" data-state-key="basic.city" placeholder="如：上海" />
+          </div>
+          <div class="ant-form-item">
+            <label class="ant-form-item-label">GitHub 主页</label>
+            <input type="text" data-state-key="basic.github" placeholder="https://github.com/..." />
+          </div>
+          <div class="ant-form-item">
+            <label class="ant-form-item-label">紧急联系人姓名</label>
+            <input type="text" data-state-key="basic.emergencyContact" placeholder="请输入紧急联系人" />
+          </div>
+          <div class="ant-form-item">
+            <label class="ant-form-item-label">紧急联系人电话</label>
+            <input type="tel" data-state-key="basic.emergencyPhone" placeholder="请输入紧急联系人手机" />
+          </div>
+          <div class="ant-form-item">
+            <label class="ant-form-item-label">短信验证码（必须跳过）</label>
+            <input type="text" data-state-key="security.smsCode" placeholder="请输入短信验证码" />
+          </div>
+          <div class="ant-form-item">
+            <label class="ant-form-item-label">账户密码（必须跳过）</label>
+            <input type="password" data-state-key="security.password" placeholder="请输入密码" />
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. 求职意向 -->
+      <section class="section-card" data-section="intention">
+        <div class="section-header">
+          <h2 class="section-title">求职意向</h2>
+        </div>
+        <div class="grid-2">
+          <div class="ant-form-item">
+            <label class="ant-form-item-label ant-form-item-required">意向岗位</label>
+            <input type="text" data-state-key="intention.targetRole" placeholder="例如：后端开发" />
+          </div>
+          <div class="ant-form-item">
+            <label class="ant-form-item-label ant-form-item-required">期望工作城市</label>
+            <div
+              class="arco-select"
+              role="combobox"
+              tabindex="0"
+              data-state-key="intention.targetCity"
+              data-portal-options='["北京市","上海市","深圳市","杭州市","广州市"]'
+            >
+              <span class="arco-select-view-value placeholder">请选择城市</span>
+              <span>▾</span>
+            </div>
+          </div>
+          <div class="ant-form-item">
+            <label class="ant-form-item-label">毕业届别</label>
+            <select data-state-key="intention.graduationYear">
+              <option value="">请选择届别</option>
+              <option value="2025">2025届</option>
+              <option value="2026">2026届</option>
+              <option value="2027">2027届</option>
+            </select>
+          </div>
+          <div class="ant-form-item">
+            <label class="ant-form-item-label">最快到岗时间</label>
+            <input type="date" data-state-key="intention.availableDate" />
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. 教育经历（动态可添加） -->
+      <section class="section-card" data-section="education">
+        <div class="section-header">
+          <h2 class="section-title">教育经历</h2>
+          <button type="button" class="btn-add" id="addEduBtn">+ 添加教育经历</button>
+        </div>
+        <div id="eduContainer"></div>
+      </section>
+
+      <!-- 4. 实习经历 -->
+      <section class="section-card" data-section="internships">
+        <div class="section-header">
+          <h2 class="section-title">实习经历</h2>
+          <button type="button" class="btn-add" id="addInternBtn">+ 添加实习经历</button>
+        </div>
+        <div id="internContainer"></div>
+      </section>
+
+      <!-- 5. 项目经历 -->
+      <section class="section-card" data-section="projects">
+        <div class="section-header">
+          <h2 class="section-title">项目经历</h2>
+          <button type="button" class="btn-add" id="addProjectBtn">+ 添加项目经历</button>
+        </div>
+        <div id="projectContainer"></div>
+      </section>
+
+      <!-- 6. 附加信息与开放题 -->
+      <section class="section-card" data-section="skills">
+        <div class="section-header">
+          <h2 class="section-title">技能与开放问答</h2>
+        </div>
+        <div class="grid-2">
+          <div class="ant-form-item">
+            <label class="ant-form-item-label">英语水平</label>
+            <input type="text" data-state-key="skills.englishLevel" placeholder="如 CET-6" />
+          </div>
+          <div class="ant-form-item">
+            <label class="ant-form-item-label">竞赛与获奖经历</label>
+            <input type="text" data-state-key="skills.awards" placeholder="校级及以上奖项" />
+          </div>
+        </div>
+        <div class="ant-form-item" style="margin-top: 12px">
+          <label class="ant-form-item-label">自我评价</label>
+          <textarea rows="3" data-state-key="skills.selfEvaluation" placeholder="请简述个人优势"></textarea>
+        </div>
+        <div class="ant-form-item" style="margin-top: 12px">
+          <label class="ant-form-item-label">你为什么想投递加入我们团队？</label>
+          <textarea rows="3" data-state-key="qa.whyJoin" placeholder="请输入你的想法"></textarea>
+        </div>
+      </section>
+
+      <div class="submit-bar">
+        <span style="font-size: 13px; color: #4b5563">
+          点击右侧按钮可验证受控状态是否真实写入（不会真实提交）
+        </span>
+        <button type="button" class="btn-submit" id="checkStateBtn">提交前状态检验</button>
+      </div>
+
+      <pre id="validationResult"></pre>
+    </div>
+
+    <script>
+      // 模拟 React 受控表单状态：只有正确触发 input/change 事件和重置 _valueTracker 才会同步到 controlledState
+      const controlledState = {};
+      window.__MOCK_CONTROLLED_STATE__ = controlledState;
+
+      function attachControlledBehavior(root) {
+        root.querySelectorAll("input, textarea, select").forEach((el) => {
+          if (el.dataset.bound) return;
+          el.dataset.bound = "1";
+          const key = el.dataset.stateKey || el.name;
+          if (!key) return;
+
+          if (el.type === "radio") {
+            el.addEventListener("change", () => {
+              if (el.checked) controlledState[key] = el.value;
+            });
+            return;
+          }
+
+          // 模拟 React _valueTracker 机制
+          let tracked = el.value;
+          el._valueTracker = {
+            getValue: () => tracked,
+            setValue: (v) => {
+              tracked = String(v ?? "");
+            },
+          };
+
+          const sync = () => {
+            if (el.value !== tracked) {
+              tracked = el.value;
+              controlledState[key] = el.value;
+            }
+          };
+          el.addEventListener("input", sync);
+          el.addEventListener("change", sync);
+        });
+
+        root.querySelectorAll(".arco-select").forEach((sel) => {
+          if (sel.dataset.bound) return;
+          sel.dataset.bound = "1";
+          sel.addEventListener("click", (e) => {
+            e.stopPropagation();
+            openPortalDropdown(sel);
+          });
+        });
+      }
+
+      let activePopup = null;
+      function closePortalDropdown() {
+        if (activePopup) {
+          activePopup.remove();
+          activePopup = null;
+        }
+      }
+      document.addEventListener("click", closePortalDropdown);
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") closePortalDropdown();
+      });
+
+      function openPortalDropdown(trigger) {
+        closePortalDropdown();
+        const opts = JSON.parse(trigger.dataset.portalOptions || "[]");
+        const rect = trigger.getBoundingClientRect();
+        const popup = document.createElement("div");
+        popup.className = "arco-select-popup";
+        popup.style.left = rect.left + "px";
+        popup.style.top = rect.bottom + 4 + "px";
+        popup.style.width = rect.width + "px";
+
+        for (const optText of opts) {
+          const item = document.createElement("div");
+          item.className = "arco-select-option";
+          item.setAttribute("role", "option");
+          item.textContent = optText;
+          item.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            const valSpan = trigger.querySelector(".arco-select-view-value");
+            valSpan.textContent = optText;
+            valSpan.classList.remove("placeholder");
+            controlledState[trigger.dataset.stateKey] = optText;
+            closePortalDropdown();
+          });
+          popup.appendChild(item);
+        }
+
+        document.body.appendChild(popup);
+        activePopup = popup;
+      }
+
+      let eduCount = 0;
+      function addEducationCard() {
+        const idx = eduCount++;
+        const card = document.createElement("div");
+        card.className = "exp-card";
+        card.innerHTML = `
+          <div class="grid-2">
+            <div class="ant-form-item">
+              <label class="ant-form-item-label ant-form-item-required">学校名称</label>
+              <input type="text" data-state-key="education[${idx}].school" placeholder="请输入毕业院校" />
+            </div>
+            <div class="ant-form-item">
+              <label class="ant-form-item-label ant-form-item-required">学历</label>
+              <div class="arco-select" role="combobox" tabindex="0" data-state-key="education[${idx}].degree" data-portal-options='["大专","大学本科","硕士研究生","博士研究生"]'>
+                <span class="arco-select-view-value placeholder">请选择学历</span><span>▾</span>
+              </div>
+            </div>
+            <div class="ant-form-item">
+              <label class="ant-form-item-label ant-form-item-required">专业名称</label>
+              <input type="text" data-state-key="education[${idx}].major" placeholder="请输入所学专业" />
+            </div>
+            <div class="ant-form-item">
+              <label class="ant-form-item-label">培养方式</label>
+              <div class="arco-select" role="combobox" tabindex="0" data-state-key="education[${idx}].studyType" data-portal-options='["统招全日制","非全日制","海外院校"]'>
+                <span class="arco-select-view-value placeholder">请选择</span><span>▾</span>
+              </div>
+            </div>
+            <div class="ant-form-item">
+              <label class="ant-form-item-label">入学时间</label>
+              <input type="month" data-state-key="education[${idx}].startDate" />
+            </div>
+            <div class="ant-form-item">
+              <label class="ant-form-item-label">毕业时间</label>
+              <input type="month" data-state-key="education[${idx}].endDate" />
+            </div>
+          </div>
+        `;
+        document.getElementById("eduContainer").appendChild(card);
+        attachControlledBehavior(card);
+      }
+
+      let internCount = 0;
+      function addInternCard() {
+        const idx = internCount++;
+        const card = document.createElement("div");
+        card.className = "exp-card";
+        card.innerHTML = `
+          <div class="grid-2">
+            <div class="ant-form-item">
+              <label class="ant-form-item-label">公司名称</label>
+              <input type="text" data-state-key="internships[${idx}].company" placeholder="请输入公司全称或简称" />
+            </div>
+            <div class="ant-form-item">
+              <label class="ant-form-item-label">职位名称</label>
+              <input type="text" data-state-key="internships[${idx}].title" placeholder="请输入担任职位" />
+            </div>
+            <div class="ant-form-item">
+              <label class="ant-form-item-label">开始时间</label>
+              <input type="text" data-state-key="internships[${idx}].startDate" placeholder="YYYY.MM" />
+            </div>
+            <div class="ant-form-item">
+              <label class="ant-form-item-label">结束时间</label>
+              <input type="text" data-state-key="internships[${idx}].endDate" placeholder="YYYY.MM" />
+            </div>
+          </div>
+          <div class="ant-form-item" style="margin-top: 10px">
+            <label class="ant-form-item-label">实习内容与成果</label>
+            <textarea rows="3" data-state-key="internships[${idx}].description" placeholder="简述职责与量化成果"></textarea>
+          </div>
+        `;
+        document.getElementById("internContainer").appendChild(card);
+        attachControlledBehavior(card);
+      }
+
+      let projCount = 0;
+      function addProjectCard() {
+        const idx = projCount++;
+        const card = document.createElement("div");
+        card.className = "exp-card";
+        card.innerHTML = `
+          <div class="grid-2">
+            <div class="ant-form-item">
+              <label class="ant-form-item-label">项目名称</label>
+              <input type="text" data-state-key="projects[${idx}].name" placeholder="请输入项目名称" />
+            </div>
+            <div class="ant-form-item">
+              <label class="ant-form-item-label">担任角色</label>
+              <input type="text" data-state-key="projects[${idx}].role" placeholder="例如：核心开发者" />
+            </div>
+          </div>
+          <div class="ant-form-item" style="margin-top: 10px">
+            <label class="ant-form-item-label">项目描述</label>
+            <textarea rows="3" data-state-key="projects[${idx}].description" placeholder="简述技术栈与产出"></textarea>
+          </div>
+        `;
+        document.getElementById("projectContainer").appendChild(card);
+        attachControlledBehavior(card);
+      }
+
+      attachControlledBehavior(document);
+      addEducationCard();
+      addInternCard();
+      addProjectCard();
+
+      document.getElementById("addEduBtn").addEventListener("click", addEducationCard);
+      document.getElementById("addInternBtn").addEventListener("click", addInternCard);
+      document.getElementById("addProjectBtn").addEventListener("click", addProjectCard);
+
+      document.getElementById("checkStateBtn").addEventListener("click", () => {
+        const out = document.getElementById("validationResult");
+        out.style.display = "block";
+        out.textContent = JSON.stringify(controlledState, null, 2);
+      });
+    </script>
+  </body>
+</html>

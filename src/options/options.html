@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>网申一键填表助手 · 简历库与设置</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="brand">
+          <img src="../../assets/icon48.png" alt="Logo" class="logo" />
+          <div>
+            <div class="brand-title">网申助手</div>
+            <div class="brand-sub">本地隐私版</div>
+          </div>
+        </div>
+
+        <nav class="nav">
+          <button class="nav-item active" data-view="profile">📄 个人简历资料</button>
+          <button class="nav-item" data-view="import">✨ 简历文本快导</button>
+          <button class="nav-item" data-view="settings">🤖 大模型与站点记忆</button>
+        </nav>
+
+        <div class="sidebar-tip">
+          所有个人资料和 API Key 仅保存在本机浏览器的 <code>chrome.storage.local</code> 中；调用大模型时也会自动脱敏手机号、身份证号和邮箱等强隐私字段。
+        </div>
+      </aside>
+
+      <main class="main">
+        <!-- 视图 1：个人简历资料 -->
+        <section id="view-profile" class="view active">
+          <div class="toolbar">
+            <div class="toolbar-left">
+              <select id="profileSelect" class="input-select"></select>
+              <input id="profileNameInput" class="input-inline" placeholder="资料名称（如：后端秋招）" />
+              <button id="newProfileBtn" class="btn-secondary">+ 新建</button>
+              <button id="deleteProfileBtn" class="btn-danger-ghost">删除</button>
+            </div>
+            <div class="toolbar-right">
+              <button id="loadSampleBtn" class="btn-outline">载入示例</button>
+              <button id="importJsonBtn" class="btn-outline">导入 JSON</button>
+              <button id="exportJsonBtn" class="btn-outline">导出 JSON</button>
+              <input type="file" id="importFileInput" accept=".json,application/json" hidden />
+              <button id="saveProfileBtn" class="btn-primary">💾 保存资料</button>
+            </div>
+          </div>
+
+          <div id="profileToast" class="toast" style="display: none"></div>
+
+          <div class="card">
+            <h2>1. 基本信息</h2>
+            <div class="grid-3">
+              <label class="field"><span>姓名</span><input data-bind="basic.name" placeholder="张三" /></label>
+              <label class="field"><span>姓名拼音 / 英文名</span><input data-bind="basic.pinyin" placeholder="San Zhang" /></label>
+              <label class="field">
+                <span>性别</span>
+                <select data-bind="basic.gender">
+                  <option value="">请选择</option>
+                  <option value="男">男</option>
+                  <option value="女">女</option>
+                </select>
+              </label>
+              <label class="field"><span>出生日期</span><input data-bind="basic.birthday" placeholder="2003-05-18" /></label>
+              <label class="field"><span>手机号</span><input data-bind="basic.phone" placeholder="13800138000" /></label>
+              <label class="field"><span>电子邮箱</span><input data-bind="basic.email" placeholder="name@example.com" /></label>
+              <label class="field"><span>微信号</span><input data-bind="basic.wechat" /></label>
+              <label class="field"><span>证件类型</span><input data-bind="basic.idType" placeholder="身份证" /></label>
+              <label class="field"><span>证件号码</span><input data-bind="basic.idNumber" /></label>
+              <label class="field"><span>现居城市</span><input data-bind="basic.city" placeholder="上海" /></label>
+              <label class="field"><span>籍贯 / 户籍</span><input data-bind="basic.hometown" placeholder="浙江杭州" /></label>
+              <label class="field"><span>政治面貌</span><input data-bind="basic.politicalStatus" placeholder="共青团员 / 中共党员 / 群众" /></label>
+              <label class="field"><span>民族</span><input data-bind="basic.ethnicity" placeholder="汉族" /></label>
+              <label class="field"><span>GitHub</span><input data-bind="basic.github" placeholder="https://github.com/..." /></label>
+              <label class="field"><span>个人主页 / 博客</span><input data-bind="basic.blog" placeholder="https://..." /></label>
+              <label class="field"><span>LinkedIn</span><input data-bind="basic.linkedin" /></label>
+              <label class="field"><span>紧急联系人</span><input data-bind="basic.emergencyContact" /></label>
+              <label class="field"><span>紧急联系人电话</span><input data-bind="basic.emergencyPhone" /></label>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>2. 求职意向</h2>
+            <div class="grid-3">
+              <label class="field"><span>意向岗位</span><input data-bind="intention.targetRole" placeholder="后端研发工程师" /></label>
+              <label class="field"><span>意向城市（逗号分隔多志愿）</span><input data-bind="intention.targetCities" placeholder="上海, 北京, 杭州" /></label>
+              <label class="field"><span>毕业届别 / 年份</span><input data-bind="intention.graduationYear" placeholder="2026届" /></label>
+              <label class="field"><span>期望薪资（留空则不自动填）</span><input data-bind="intention.expectedSalary" /></label>
+              <label class="field"><span>可到岗时间</span><input data-bind="intention.availableDate" placeholder="2026-07-01" /></label>
+              <label class="field"><span>可实习时长</span><input data-bind="intention.internshipDuration" placeholder="6个月" /></label>
+              <label class="field">
+                <span>是否接受岗位/地点调剂</span>
+                <select data-bind="intention.acceptAdjustment">
+                  <option value="">留空（不自动选）</option>
+                  <option value="是">是</option>
+                  <option value="否">否</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <h2>3. 教育经历（按时间倒序，第一条为最高学历）</h2>
+              <button id="addEduBtn" class="btn-secondary">+ 添加教育经历</button>
+            </div>
+            <div id="educationList" class="repeat-list"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <h2>4. 实习 / 工作经历</h2>
+              <button id="addInternBtn" class="btn-secondary">+ 添加实习经历</button>
+            </div>
+            <div id="internshipsList" class="repeat-list"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <h2>5. 项目经历</h2>
+              <button id="addProjectBtn" class="btn-secondary">+ 添加项目经历</button>
+            </div>
+            <div id="projectsList" class="repeat-list"></div>
+          </div>
+
+          <div class="card">
+            <h2>6. 专业技能、荣誉与自我评价</h2>
+            <div class="grid-2">
+              <label class="field"><span>英语等级 / 成绩</span><input data-bind="skills.englishLevel" placeholder="CET-6 (585)" /></label>
+              <label class="field"><span>语言能力</span><input data-bind="skills.languages" placeholder="中文、英语" /></label>
+            </div>
+            <div class="stack">
+              <label class="field"><span>专业技能 / 技术栈</span><textarea rows="3" data-bind="skills.summary"></textarea></label>
+              <label class="field"><span>竞赛与获奖经历</span><textarea rows="2" data-bind="skills.awards"></textarea></label>
+              <label class="field"><span>论文与专利</span><textarea rows="2" data-bind="skills.papers"></textarea></label>
+              <label class="field"><span>自我评价 / 个人简介</span><textarea rows="3" data-bind="skills.selfEvaluation"></textarea></label>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <h2>7. 常用开放题关键词库（如：为什么加入我们）</h2>
+              <button id="addQaBtn" class="btn-secondary">+ 添加问答</button>
+            </div>
+            <div id="qaList" class="repeat-list"></div>
+          </div>
+        </section>
+
+        <!-- 视图 2：简历文本快导 -->
+        <section id="view-import" class="view">
+          <div class="card">
+            <h2>从简历纯文本 / Markdown 快速解析导入</h2>
+            <p class="desc">把 PDF 简历里的文字复制粘贴到下方，点击解析即可自动提取结构化字段并合并到当前求职资料中。</p>
+            <textarea id="rawResumeTextarea" rows="12" class="mono-textarea" placeholder="在此粘贴简历全文（支持中英文）..."></textarea>
+            <div class="row-actions">
+              <button id="localParseBtn" class="btn-secondary">⚡ 本地快速提取（离线免费）</button>
+              <button id="llmParseBtn" class="btn-primary">🤖 AI 智能解析整份简历</button>
+            </div>
+          </div>
+          <div id="parsePreviewCard" class="card" style="display: none">
+            <div class="card-head">
+              <h2>解析结果预览</h2>
+              <button id="applyParsedBtn" class="btn-primary">写入当前资料并去微调</button>
+            </div>
+            <pre id="parsePreviewJson" class="json-pre"></pre>
+          </div>
+        </section>
+
+        <!-- 视图 3：大模型与站点记忆 -->
+        <section id="view-settings" class="view">
+          <div class="card">
+            <h2>大模型 API 语义兜底设置（OpenAI 兼容接口）</h2>
+            <p class="desc">
+              本地同义词规则未命中的特殊字段（如非标下拉框或少见标签），可交由大模型推理匹配；强隐私字段（姓名、电话、身份证、邮箱）不会发给外部模型。
+            </p>
+            <div class="grid-2">
+              <label class="field">
+                <span>快速预设平台</span>
+                <select id="llmPresetSelect">
+                  <option value="">自定义...</option>
+                  <option value="deepseek">DeepSeek (deepseek-chat)</option>
+                  <option value="qwen">阿里通义千问 DashScope (qwen-plus)</option>
+                  <option value="kimi">Kimi / Moonshot (moonshot-v1-8k)</option>
+                  <option value="openai">OpenAI (gpt-4o-mini)</option>
+                  <option value="ollama">本地 Ollama (http://localhost:11434/v1)</option>
+                </select>
+              </label>
+              <label class="field checkbox-field">
+                <input type="checkbox" id="llmEnabled" />
+                <span>启用大模型语义兜底</span>
+              </label>
+              <label class="field"><span>Base URL</span><input id="llmBaseUrl" placeholder="https://api.deepseek.com/v1" /></label>
+              <label class="field"><span>Model 名称</span><input id="llmModel" placeholder="deepseek-chat" /></label>
+              <label class="field"><span>API Key（本地 Ollama 可留空）</span><input id="llmApiKey" type="password" placeholder="sk-..." /></label>
+              <label class="field checkbox-field">
+                <input type="checkbox" id="llmAllowDraft" />
+                <span>允许 AI 根据非隐私经历草拟开放题回答（填后标橙色待确认）</span>
+              </label>
+            </div>
+            <div class="row-actions">
+              <button id="saveLlmBtn" class="btn-primary">💾 保存大模型配置</button>
+              <button id="testLlmBtn" class="btn-outline">🔌 测试连接</button>
+              <span id="llmTestStatus" class="status-inline"></span>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <h2>本机站点字段记忆库（越用越准）</h2>
+              <button id="clearAllLearnedBtn" class="btn-danger-ghost">清空全部记忆</button>
+            </div>
+            <p class="desc">在弹窗中手动“记住映射”或经大模型高置信度匹配成功的字段会保存在本地，下次同域名网申零延迟直接命中。</p>
+            <div id="learnedTableWrap"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>网申一键填表助手</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="header">
+        <div class="brand">
+          <img src="../../assets/icon48.png" alt="Logo" class="logo" />
+          <div>
+            <h1>网申一键填表助手</h1>
+            <p class="subtitle" id="siteHost">等待连接当前网页...</p>
+          </div>
+        </div>
+        <button id="openOptionsBtn" class="btn-ghost" title="管理简历资料与大模型设置">
+          简历与设置
+        </button>
+      </header>
+
+      <section class="card profile-card">
+        <div class="row-between">
+          <label for="profileSelect" class="field-label">当前求职资料</label>
+          <span id="llmStatusPill" class="pill pill-muted">仅本地规则</span>
+        </div>
+        <div class="profile-row">
+          <select id="profileSelect" class="select"></select>
+          <button id="loadSampleQuickBtn" class="btn-small" style="display: none">
+            载入示例
+          </button>
+        </div>
+        <p id="profileWarn" class="warn-text" style="display: none"></p>
+      </section>
+
+      <section class="card options-card">
+        <label class="toggle-item">
+          <input type="checkbox" id="optUseLLM" />
+          <span>未命中字段交由大模型语义兜底</span>
+        </label>
+        <label class="toggle-item">
+          <input type="checkbox" id="optAutoExpand" />
+          <span>自动点击「+ 添加经历」补齐教育/实习段数</span>
+        </label>
+        <label class="toggle-item">
+          <input type="checkbox" id="optOverwrite" />
+          <span>覆盖页面上已经填好的内容</span>
+        </label>
+      </section>
+
+      <section class="actions">
+        <button id="fillBtn" class="btn-primary">⚡ 一键智能填表</button>
+        <button id="scanBtn" class="btn-secondary">🔍 扫描预览</button>
+        <button id="clearBtn" class="btn-outline" title="清除页面高亮边框">清高亮</button>
+      </section>
+
+      <div id="statusBanner" class="banner" style="display: none"></div>
+
+      <section id="reportSection" class="report" style="display: none">
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-num" id="statTotal">0</div>
+            <div class="stat-label">识别字段</div>
+          </div>
+          <div class="stat-box stat-ok">
+            <div class="stat-num" id="statFilled">0</div>
+            <div class="stat-label">已填充</div>
+          </div>
+          <div class="stat-box stat-warn">
+            <div class="stat-num" id="statWarn">0</div>
+            <div class="stat-label">待核对</div>
+          </div>
+          <div class="stat-box stat-muted">
+            <div class="stat-num" id="statRemain">0</div>
+            <div class="stat-label">未填/跳过</div>
+          </div>
+        </div>
+
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="filled">填充明细</button>
+          <button class="tab-btn" data-tab="unmatched">未匹配 &amp; 跳过</button>
+        </div>
+
+        <div id="detailList" class="detail-list"></div>
+      </section>
+
+      <footer class="footer">
+        安全边界：自动跳过密码与验证码，绝不自动点击最终提交按钮。
+      </footer>
+    </div>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
