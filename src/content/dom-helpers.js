@@ -346,6 +346,59 @@
       .join(".");
   }
 
+  function readCustomSelectValue(wrapper) {
+    if (!wrapper) return "";
+    const valNode = wrapper.querySelector(
+      '.ant-select-selection-item, .arco-select-view-value, .semi-select-selection-text, [data-selected-label="true"], .selected-value'
+    );
+    if (valNode) {
+      const txt = cleanText(valNode.textContent);
+      return isPlaceholderText(txt) ? "" : txt;
+    }
+    const innerInput = wrapper.querySelector("input");
+    if (innerInput && innerInput.value && !isPlaceholderText(innerInput.value)) {
+      return innerInput.value.trim();
+    }
+    const raw = cleanText(wrapper.textContent);
+    return isPlaceholderText(raw) ? "" : raw;
+  }
+
+  function readElementValue(el, controlType = "", radioName = "") {
+    if (!el || !el.isConnected) return "";
+    const tag = el.tagName.toLowerCase();
+
+    if (controlType === "radio-group") {
+      const inside = Array.from(el.querySelectorAll('[role="radio"], input[type="radio"]'));
+      const radios =
+        inside.length > 0
+          ? inside
+          : radioName
+            ? Array.from(document.querySelectorAll(`input[type="radio"][name="${CSS.escape(radioName)}"]`))
+            : [];
+      const checked = radios.find(
+        (r) => r.checked || r.getAttribute("aria-checked") === "true"
+      );
+      if (!checked) return "";
+      return cleanText(
+        checked.closest("label")?.textContent || checked.textContent || checked.value || ""
+      );
+    }
+
+    if (controlType === "custom-select" || controlType === "searchable-select") {
+      return readCustomSelectValue(el);
+    }
+
+    if (tag === "select") {
+      const opt = el.options[el.selectedIndex];
+      if (!opt) return "";
+      const txt = opt.textContent.trim();
+      return isPlaceholderText(txt) ? "" : txt;
+    }
+
+    const val = el.value != null ? String(el.value).trim() : "";
+    return isPlaceholderText(val) ? "" : val;
+  }
+
   ns.domHelpers = {
     isVisible,
     cleanText,
@@ -356,5 +409,7 @@
     classifySectionFromText,
     getSectionContainer,
     detectEntryIndex,
+    readCustomSelectValue,
+    readElementValue,
   };
 })();

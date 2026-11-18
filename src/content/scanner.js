@@ -9,6 +9,7 @@
   function scanPageForm() {
     const h = ns.domHelpers;
     ns.elementRegistry = new Map();
+    ns.elementRegistryMeta = new Map();
     ns.addButtonRegistry = new Map();
 
     const fields = [];
@@ -24,6 +25,11 @@
     const registerField = (el, descriptor) => {
       const fieldId = `oa_f_${seq++}`;
       ns.elementRegistry.set(fieldId, el);
+      ns.elementRegistryMeta.set(fieldId, {
+        controlType: descriptor.controlType,
+        inputType: descriptor.inputType,
+        radioName: descriptor._radioName || descriptor.name || "",
+      });
       fields.push({ fieldId, ...descriptor });
     };
 
@@ -47,7 +53,7 @@
         Boolean(innerInput && !innerInput.readOnly && innerInput.type !== "hidden") ||
         wrapper.getAttribute("data-searchable") === "true";
 
-      const currentValue = extractCustomSelectValue(wrapper, h);
+      const currentValue = h.readCustomSelectValue(wrapper);
       const staticOptions = extractStaticListboxOptions(wrapper);
 
       registerField(wrapper, {
@@ -230,22 +236,6 @@
     }
   }
 
-  function extractCustomSelectValue(wrapper, h) {
-    const valNode = wrapper.querySelector(
-      '.ant-select-selection-item, .arco-select-view-value, .semi-select-selection-text, [data-selected-label="true"], .selected-value'
-    );
-    if (valNode) {
-      const txt = h.cleanText(valNode.textContent);
-      return h.isPlaceholderText(txt) ? "" : txt;
-    }
-    const innerInput = wrapper.querySelector("input");
-    if (innerInput && innerInput.value && !h.isPlaceholderText(innerInput.value)) {
-      return innerInput.value.trim();
-    }
-    const raw = h.cleanText(wrapper.textContent);
-    return h.isPlaceholderText(raw) ? "" : raw;
-  }
-
   function extractStaticListboxOptions(wrapper) {
     const controlledId =
       wrapper.getAttribute("aria-controls") || wrapper.getAttribute("aria-owns");
@@ -302,5 +292,21 @@
     return buttons;
   }
 
-  ns.scanner = { scanPageForm };
+  function readFieldValues(fieldIds = []) {
+    const h = ns.domHelpers;
+    const out = [];
+    for (const fieldId of fieldIds) {
+      const el = ns.elementRegistry?.get(fieldId);
+      const meta = ns.elementRegistryMeta?.get(fieldId) || {};
+      if (!el || !el.isConnected) continue;
+      if (meta.inputType === "password" || meta.inputType === "file") continue;
+      out.push({
+        fieldId,
+        value: h.readElementValue(el, meta.controlType, meta.radioName),
+      });
+    }
+    return out;
+  }
+
+  ns.scanner = { scanPageForm, readFieldValues };
 })();

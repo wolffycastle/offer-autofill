@@ -9,7 +9,10 @@ import {
 } from "../shared/profile-schema.js";
 import { parseResumeTextLocally } from "../shared/resume-parser.js";
 import {
+  clearGlobalLearnedRules,
   clearLearnedMappings,
+  deleteDomainLearnedMapping,
+  deleteGlobalLearnedRule,
   loadAppState,
   saveLlmConfig,
   saveProfiles,
@@ -517,6 +520,12 @@ function bindLlmEvents() {
     }
   });
 
+  document.getElementById("clearAllGlobalBtn").addEventListener("click", async () => {
+    await clearGlobalLearnedRules();
+    appState.globalLearnedRules = {};
+    renderLearnedTable();
+  });
+
   document.getElementById("clearAllLearnedBtn").addEventListener("click", async () => {
     await clearLearnedMappings();
     appState.learnedMappings = {};
@@ -525,15 +534,22 @@ function bindLlmEvents() {
 }
 
 function renderLearnedTable() {
+  renderGlobalRulesTable();
+
   const wrap = document.getElementById("learnedTableWrap");
   const entries = [];
   for (const [host, siteMap] of Object.entries(appState.learnedMappings || {})) {
     for (const [key, val] of Object.entries(siteMap || {})) {
-      entries.push({ host, key, path: val?.path || "" });
+      entries.push({
+        host,
+        key,
+        label: val?.label || key,
+        target: val?.path ? `绑定字段: ${val.path}` : `固定回答: ${val?.fixedValue || ""}`,
+      });
     }
   }
   if (entries.length === 0) {
-    wrap.innerHTML = `<p class="desc">暂无站点记忆记录。</p>`;
+    wrap.innerHTML = `<p class="desc">暂无按域名记忆的字段记录。</p>`;
     return;
   }
 
@@ -541,7 +557,7 @@ function renderLearnedTable() {
   table.className = "learned-table";
   table.innerHTML = `
     <thead>
-      <tr><th>网站域名</th><th>区块 :: 字段名</th><th>绑定资料路径</th><th>操作</th></tr>
+      <tr><th>网站域名</th><th>区块 :: 字段名</th><th>记忆内容</th><th>操作</th></tr>
     </thead>
     <tbody></tbody>
   `;
@@ -550,13 +566,58 @@ function renderLearnedTable() {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${escapeHtml(row.host)}</td>
-      <td>${escapeHtml(row.key)}</td>
-      <td><code>${escapeHtml(row.path)}</code></td>
-      <td><button class="btn-danger-ghost">清除该域名</button></td>
+      <td>${escapeHtml(row.label)}</td>
+      <td><code>${escapeHtml(row.target)}</code></td>
+      <td><button class="btn-danger-ghost">删除</button></td>
     `;
     tr.querySelector("button").addEventListener("click", async () => {
-      await clearLearnedMappings(row.host);
-      delete appState.learnedMappings[row.host];
+      await deleteDomainLearnedMapping(row.host, row.key);
+      if (appState.learnedMappings[row.host]) {
+        delete appState.learnedMappings[row.host][row.key];
+      }
+      renderLearnedTable();
+    });
+    tbody.appendChild(tr);
+  }
+  wrap.innerHTML = "";
+  wrap.appendChild(table);
+}
+
+function renderGlobalRulesTable() {
+  const wrap = document.getElementById("globalLearnedWrap");
+  if (!wrap) return;
+  const entries = Object.entries(appState.globalLearnedRules || {}).map(([key, val]) => ({
+    key,
+    label: val?.label || key,
+    section: val?.section || "basic",
+    target: val?.path ? `绑定字段: ${val.path}` : `固定回答: ${val?.fixedValue || ""}`,
+  }));
+
+  if (entries.length === 0) {
+    wrap.innerHTML = `<p class="desc">暂无跨网站通用记忆记录。</p>`;
+    return;
+  }
+
+  const table = document.createElement("table");
+  table.className = "learned-table";
+  table.innerHTML = `
+    <thead>
+      <tr><th>区块</th><th>网页字段名</th><th>记忆内容</th><th>操作</th></tr>
+    </thead>
+    <tbody></tbody>
+  `;
+  const tbody = table.querySelector("tbody");
+  for (const row of entries) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${escapeHtml(row.section)}</td>
+      <td>${escapeHtml(row.label)}</td>
+      <td><code>${escapeHtml(row.target)}</code></td>
+      <td><button class="btn-danger-ghost">删除</button></td>
+    `;
+    tr.querySelector("button").addEventListener("click", async () => {
+      await deleteGlobalLearnedRule(row.key);
+      delete appState.globalLearnedRules[row.key];
       renderLearnedTable();
     });
     tbody.appendChild(tr);

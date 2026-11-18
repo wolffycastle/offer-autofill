@@ -9,6 +9,7 @@
     "oa-highlight-ok",
     "oa-highlight-warn",
     "oa-highlight-fail",
+    "oa-highlight-missing",
     "oa-highlight-pulse",
   ];
 
@@ -31,6 +32,11 @@
       .oa-highlight-fail {
         outline: 2px dashed #ef4444 !important;
         outline-offset: 2px !important;
+      }
+      .oa-highlight-missing {
+        outline: 2px dashed #f97316 !important;
+        outline-offset: 2px !important;
+        box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15) !important;
       }
       .oa-highlight-pulse {
         box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.32) !important;
@@ -70,7 +76,7 @@
     document.head.appendChild(style);
   }
 
-  function applyHighlights(results = [], summary = null) {
+  function applyHighlights(results = [], summary = null, missingRequiredIds = []) {
     if (results.length > 0) {
       clearHighlights();
     }
@@ -83,6 +89,7 @@
     for (const r of results) {
       const el = ns.elementRegistry?.get(r.fieldId);
       if (!el || !el.isConnected) continue;
+      el.classList.remove("oa-highlight-missing", "oa-highlight-fail");
 
       if (r.status === "filled") {
         if (typeof r.confidence === "number" && r.confidence < 0.8) {
@@ -98,12 +105,20 @@
       }
     }
 
+    for (const fid of missingRequiredIds || []) {
+      const el = ns.elementRegistry?.get(fid);
+      if (!el || !el.isConnected) continue;
+      if (!el.classList.contains("oa-highlight-ok")) {
+        el.classList.add("oa-highlight-missing");
+      }
+    }
+
     if ((results.length > 0 || summary) && window === window.top) {
-      showToast(summary || { okCount, warnCount, failCount });
+      showToast(summary || { okCount, warnCount, failCount, missingReqCount: missingRequiredIds.length });
     }
   }
 
-  function showToast({ okCount = 0, warnCount = 0, failCount = 0 }) {
+  function showToast({ okCount = 0, warnCount = 0, failCount = 0, missingReqCount = 0 }) {
     const existing = document.getElementById(TOAST_ID);
     if (existing) existing.remove();
 
@@ -113,14 +128,20 @@
     const textWrap = document.createElement("div");
     const line1 = document.createElement("div");
     line1.style.fontWeight = "600";
-    line1.textContent = `网申助手：已填 ${okCount + warnCount} 项`;
+    line1.textContent =
+      missingReqCount > 0
+        ? `网申助手：已填 ${okCount + warnCount} 项 · ${missingReqCount} 个必填未命中`
+        : `网申助手：已填 ${okCount + warnCount} 项`;
     const line2 = document.createElement("div");
     line2.style.fontSize = "12px";
     line2.style.color = "#d1d5db";
-    line2.textContent =
-      warnCount > 0 || failCount > 0
-        ? `橙框 ${warnCount} 项待核对 · 红虚线 ${failCount} 项需手填（未点提交）`
-        : "全部已自动对齐，请核对后自行点击提交";
+    if (missingReqCount > 0) {
+      line2.textContent = "在网页补填后，点扩展弹窗「读取补填并记住」下次自动命中";
+    } else if (warnCount > 0 || failCount > 0) {
+      line2.textContent = `橙框 ${warnCount} 项待核对 · 红虚线 ${failCount} 项需手填（未点提交）`;
+    } else {
+      line2.textContent = "全部已自动对齐，请核对后自行点击提交";
+    }
 
     textWrap.appendChild(line1);
     textWrap.appendChild(line2);
@@ -153,5 +174,17 @@
     return true;
   }
 
-  ns.overlay = { applyHighlights, clearHighlights, focusField };
+  function markSingleResult(r) {
+    ensureStyles();
+    const el = ns.elementRegistry?.get(r?.fieldId);
+    if (!el || !el.isConnected) return;
+    el.classList.remove("oa-highlight-missing", "oa-highlight-fail", "oa-highlight-warn");
+    if (r.status === "filled") {
+      el.classList.add("oa-highlight-ok");
+    } else if (r.status === "failed") {
+      el.classList.add("oa-highlight-fail");
+    }
+  }
+
+  ns.overlay = { applyHighlights, markSingleResult, clearHighlights, focusField };
 })();

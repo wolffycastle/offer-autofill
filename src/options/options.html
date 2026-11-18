@@ -208,10 +208,19 @@
 
           <div class="card">
             <div class="card-head">
-              <h2>本机站点字段记忆库（越用越准）</h2>
-              <button id="clearAllLearnedBtn" class="btn-danger-ghost">清空全部记忆</button>
+              <h2>跨网站通用字段记忆（补填记录后所有网站生效）</h2>
+              <button id="clearAllGlobalBtn" class="btn-danger-ghost">清空通用记忆</button>
             </div>
-            <p class="desc">在弹窗中手动“记住映射”或经大模型高置信度匹配成功的字段会保存在本地，下次同域名网申零延迟直接命中。</p>
+            <p class="desc">当你在弹窗中对未命中字段选择「跨所有网站记住」并补充回答后，会保存在这里，下次任何网站遇到同名字段都能自动命中。</p>
+            <div id="globalLearnedWrap"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <h2>按域名记忆的站点字段库（越用越准）</h2>
+              <button id="clearAllLearnedBtn" class="btn-danger-ghost">清空站点记忆</button>
+            </div>
+            <p class="desc">在弹窗中勾选「仅当前网站记住」或经大模型高置信度匹配成功的字段会保存在本地，下次同域名网申零延迟直接命中。</p>
             <div id="learnedTableWrap"></div>
           </div>
         </section>

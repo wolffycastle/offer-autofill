@@ -270,14 +270,93 @@ button:disabled {
   flex: 1;
   background: #e2e8f0;
   color: #475569;
-  padding: 6px 8px;
+  padding: 6px 6px;
   font-size: 12px;
   border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
 }
 
 .tab-btn.active {
   background: #1e293b;
   color: #fff;
+}
+
+.tab-badge {
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  padding: 0 5px;
+  border-radius: 999px;
+  line-height: 1.5;
+}
+
+.missed-toolbar {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.missed-tip {
+  font-size: 11px;
+  color: #9a3412;
+  line-height: 1.4;
+}
+
+.missed-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.learn-scope-select {
+  font-size: 11px;
+  padding: 5px 6px;
+  border: 1px solid #fdba74;
+  border-radius: 6px;
+  background: #fff;
+  color: #7c2d12;
+}
+
+.btn-capture {
+  flex: 1;
+  background: #ea580c;
+  color: #fff;
+  font-size: 12px;
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+
+.btn-capture:hover:not(:disabled) {
+  background: #c2410c;
+}
+
+.missed-form-row {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.missed-input {
+  width: 100%;
+  font-size: 12px;
+  padding: 5px 7px;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  font-family: inherit;
+}
+
+.badge-req {
+  background: #ffedd5;
+  color: #c2410c;
+  border: 1px solid #fdba74;
 }
 
 .detail-list {

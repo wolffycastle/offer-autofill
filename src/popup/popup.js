@@ -7,15 +7,30 @@ import {
 } from "../shared/storage.js";
 
 const LEARNABLE_PATHS = [
-  { label: "绑定到资料字段...", value: "" },
+  { label: "记为该字段独立答案（无需绑定）", value: "__fixed__" },
   { label: "基本信息 · 姓名", value: "basic.name" },
+  { label: "基本信息 · 拼音/英文名", value: "basic.pinyin" },
+  { label: "基本信息 · 性别", value: "basic.gender" },
+  { label: "基本信息 · 年龄", value: "basic.age" },
+  { label: "基本信息 · 出生日期", value: "basic.birthday" },
   { label: "基本信息 · 手机号", value: "basic.phone" },
   { label: "基本信息 · 邮箱", value: "basic.email" },
+  { label: "基本信息 · 微信号", value: "basic.wechat" },
+  { label: "基本信息 · 身份证号", value: "basic.idNumber" },
   { label: "基本信息 · 现居城市", value: "basic.city" },
-  { label: "基本信息 · 毕业届别", value: "intention.graduationYear" },
+  { label: "基本信息 · 籍贯/户籍", value: "basic.hometown" },
+  { label: "基本信息 · 政治面貌", value: "basic.politicalStatus" },
+  { label: "基本信息 · 民族", value: "basic.ethnicity" },
+  { label: "基本信息 · GitHub", value: "basic.github" },
+  { label: "基本信息 · 个人主页", value: "basic.blog" },
+  { label: "基本信息 · 紧急联系人", value: "basic.emergencyContact" },
+  { label: "基本信息 · 紧急联系人电话", value: "basic.emergencyPhone" },
+  { label: "求职意向 · 毕业届别", value: "intention.graduationYear" },
   { label: "求职意向 · 意向岗位", value: "intention.targetRole" },
   { label: "求职意向 · 意向城市", value: "intention.targetCities" },
   { label: "求职意向 · 到岗时间", value: "intention.availableDate" },
+  { label: "求职意向 · 实习时长", value: "intention.internshipDuration" },
+  { label: "求职意向 · 是否接受调剂", value: "intention.acceptAdjustment" },
   { label: "教育经历 · 学校", value: "education[0].school" },
   { label: "教育经历 · 学历", value: "education[0].degree" },
   { label: "教育经历 · 专业", value: "education[0].major" },
@@ -29,6 +44,7 @@ const LEARNABLE_PATHS = [
   { label: "项目经历 · 项目描述", value: "projects[0].description" },
   { label: "综合 · 专业技能", value: "skills.summary" },
   { label: "综合 · 英语水平", value: "skills.englishLevel" },
+  { label: "综合 · 竞赛获奖", value: "skills.awards" },
   { label: "综合 · 自我评价", value: "skills.selfEvaluation" },
 ];
 
@@ -51,6 +67,10 @@ const els = {
   statFilled: document.getElementById("statFilled"),
   statWarn: document.getElementById("statWarn"),
   statRemain: document.getElementById("statRemain"),
+  missedBadge: document.getElementById("missedBadge"),
+  missedToolbar: document.getElementById("missedToolbar"),
+  learnScopeSelect: document.getElementById("learnScopeSelect"),
+  batchCaptureBtn: document.getElementById("batchCaptureBtn"),
   detailList: document.getElementById("detailList"),
   tabBtns: Array.from(document.querySelectorAll(".tab-btn")),
 };
@@ -183,11 +203,58 @@ function bindEvents() {
 
   for (const btn of els.tabBtns) {
     btn.addEventListener("click", () => {
-      activeTab = btn.dataset.tab;
-      els.tabBtns.forEach((b) => b.classList.toggle("active", b === btn));
-      if (currentReport) renderDetailList(currentReport);
+      switchTab(btn.dataset.tab);
     });
   }
+
+  els.batchCaptureBtn.addEventListener("click", async () => {
+    if (!currentReport?.missedRequired?.length || !activeBrowserTab?.id) return;
+    const pending = currentReport.missedRequired.filter((m) => !m.recorded);
+    if (pending.length === 0) {
+      showBanner("所有未命中必填项均已记录完毕。", "info");
+      return;
+    }
+
+    els.batchCaptureBtn.disabled = true;
+    els.batchCaptureBtn.textContent = "读取中...";
+    const resp = await sendRuntime({
+      type: "BATCH_CAPTURE_MISSED",
+      tabId: activeBrowserTab.id,
+      profileId: els.profileSelect.value,
+      hostname: currentReport.hostname,
+      fields: pending,
+      scope: els.learnScopeSelect.value,
+    });
+    els.batchCaptureBtn.disabled = false;
+    els.batchCaptureBtn.textContent = "📥 读取网页补填并记住";
+
+    if (!resp?.ok) {
+      showBanner(`读取失败：${resp?.error || "请刷新页面后重试"}`, "error");
+      return;
+    }
+
+    const captured = resp.captured || [];
+    if (captured.length === 0) {
+      showBanner("网页上这几个必填项当前还是空的，请先在网页填好再点读取，或直接在下方输入保存。", "info");
+      return;
+    }
+
+    const capMap = new Map(captured.map((c) => [c.fieldId, c.value]));
+    for (const item of currentReport.missedRequired) {
+      if (capMap.has(item.fieldId)) {
+        item.recorded = true;
+        item.recordedValue = capMap.get(item.fieldId);
+      }
+    }
+    renderReport(currentReport, { preserveTab: true });
+    showBanner(`已采集并记住 ${captured.length} 项补填内容，下次遇到同名字段将自动命中！`, "info");
+  });
+}
+
+function switchTab(tabName) {
+  activeTab = tabName;
+  els.tabBtns.forEach((b) => b.classList.toggle("active", b.dataset.tab === tabName));
+  if (currentReport) renderDetailList(currentReport);
 }
 
 async function triggerAction(type) {
@@ -243,19 +310,36 @@ function setBusy(busy, label = "") {
   els.scanBtn.textContent = busy && label.includes("扫描") ? label : "🔍 扫描预览";
 }
 
-function renderReport(report) {
+function renderReport(report, { preserveTab = false } = {}) {
   els.reportSection.style.display = "flex";
   els.statTotal.textContent = String(report.totalFields || 0);
 
+  const missed = report.missedRequired || [];
+  const pendingCount = missed.filter((m) => !m.recorded).length;
+
+  if (pendingCount > 0) {
+    els.missedBadge.style.display = "inline-block";
+    els.missedBadge.textContent = String(pendingCount);
+  } else {
+    els.missedBadge.style.display = "none";
+  }
+
+  if (!preserveTab) {
+    activeTab = pendingCount > 0 ? "missed" : "filled";
+  }
+  els.tabBtns.forEach((b) => b.classList.toggle("active", b.dataset.tab === activeTab));
+
   if (report.mode === "preview") {
     els.statFilled.textContent = String(report.matched?.length || 0);
-    els.statWarn.textContent = "0";
+    els.statWarn.textContent = String(pendingCount);
     els.statRemain.textContent = String(
       (report.unmatched?.length || 0) + (report.skipped?.length || 0)
     );
   } else {
     els.statFilled.textContent = String(report.filledCount || 0);
-    els.statWarn.textContent = String((report.warnCount || 0) + (report.failCount || 0));
+    els.statWarn.textContent = String(
+      (report.warnCount || 0) + (report.failCount || 0) + pendingCount
+    );
     els.statRemain.textContent = String(
       (report.unmatchedCount || 0) + (report.skippedCount || 0)
     );
@@ -266,6 +350,133 @@ function renderReport(report) {
 
 function renderDetailList(report) {
   els.detailList.innerHTML = "";
+  els.missedToolbar.style.display = activeTab === "missed" ? "flex" : "none";
+
+  if (activeTab === "missed") {
+    const missed = report.missedRequired || [];
+    if (missed.length === 0) {
+      els.detailList.innerHTML = `<div class="detail-item"><div class="detail-sub">太棒了！当前页面所有必填项均已命中 🎉</div></div>`;
+      return;
+    }
+
+    for (const item of missed) {
+      const div = document.createElement("div");
+      div.className = "detail-item";
+
+      const kindTag = item.recorded
+        ? `<span class="badge badge-ok">已记住 ✓</span>`
+        : `<span class="badge badge-req">* 必填 · ${
+            item.missedKind === "profile_empty" ? "资料为空" : "未识别"
+          }</span>`;
+
+      div.innerHTML = `
+        <div class="detail-top">
+          <span class="detail-name">${escapeHtml(item.label || item.fieldId)}</span>
+          ${kindTag}
+        </div>
+        <div class="detail-sub">${escapeHtml(
+          item.recorded ? `已记录值：${item.recordedValue || ""}` : item.reason || ""
+        )}</div>
+      `;
+
+      if (!item.recorded) {
+        const formRow = document.createElement("div");
+        formRow.className = "missed-form-row";
+
+        // 若网页字段已知可选项，展示下拉框，否则提供输入框
+        let valueCtrl;
+        if (Array.isArray(item.options) && item.options.length > 0) {
+          valueCtrl = document.createElement("select");
+          valueCtrl.className = "missed-input";
+          const emptyOpt = document.createElement("option");
+          emptyOpt.value = "";
+          emptyOpt.textContent = "请选择或补填内容...";
+          valueCtrl.appendChild(emptyOpt);
+          for (const optText of item.options) {
+            const o = document.createElement("option");
+            o.value = optText;
+            o.textContent = optText;
+            valueCtrl.appendChild(o);
+          }
+        } else {
+          valueCtrl = document.createElement("input");
+          valueCtrl.className = "missed-input";
+          valueCtrl.placeholder = item.placeholder || "输入补充值（记住后下次自动填）";
+        }
+        valueCtrl.addEventListener("click", (e) => e.stopPropagation());
+
+        const actionRow = document.createElement("div");
+        actionRow.className = "learn-row";
+
+        const pathSel = document.createElement("select");
+        pathSel.className = "learn-select";
+        for (const optDef of LEARNABLE_PATHS) {
+          const o = document.createElement("option");
+          o.value = optDef.value;
+          o.textContent = optDef.label;
+          if (item.sourcePath && optDef.value === item.sourcePath) {
+            o.selected = true;
+          }
+          pathSel.appendChild(o);
+        }
+        // 若 sourcePath 不在预置列表中（如 education[1].gpa），额外插入选项并选中
+        if (
+          item.sourcePath &&
+          !LEARNABLE_PATHS.some((p) => p.value === item.sourcePath)
+        ) {
+          const customOpt = document.createElement("option");
+          customOpt.value = item.sourcePath;
+          customOpt.textContent = `写入资料字段 (${item.sourcePath})`;
+          customOpt.selected = true;
+          pathSel.prepend(customOpt);
+        }
+        pathSel.addEventListener("click", (e) => e.stopPropagation());
+
+        const saveBtn = document.createElement("button");
+        saveBtn.className = "btn-small";
+        saveBtn.textContent = "记住并填入";
+        saveBtn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const val = valueCtrl.value.trim();
+          if (!val) {
+            showBanner(`请先为「${item.label}」输入要记住的内容。`, "error");
+            return;
+          }
+          saveBtn.disabled = true;
+          saveBtn.textContent = "保存中...";
+          const resp = await sendRuntime({
+            type: "RECORD_AND_FILL_FIELD",
+            tabId: activeBrowserTab?.id,
+            profileId: els.profileSelect.value,
+            hostname: report.hostname,
+            field: item,
+            value: val,
+            targetPath: pathSel.value,
+            scope: els.learnScopeSelect.value,
+            fillToPage: true,
+          });
+          if (resp?.ok) {
+            item.recorded = true;
+            item.recordedValue = val;
+            renderReport(report, { preserveTab: true });
+            showBanner(`已记住「${item.label} = ${val}」并填入网页，下次将自动命中！`, "info");
+          } else {
+            saveBtn.disabled = false;
+            saveBtn.textContent = "记住并填入";
+            showBanner(resp?.error || "保存失败", "error");
+          }
+        });
+
+        actionRow.append(pathSel, saveBtn);
+        formRow.append(valueCtrl, actionRow);
+        div.appendChild(formRow);
+      }
+
+      div.addEventListener("click", () => focusPageField(item.fieldId, item.frameId ?? 0));
+      els.detailList.appendChild(div);
+    }
+    return;
+  }
 
   if (activeTab === "filled") {
     const items = report.mode === "preview" ? report.matched || [] : report.results || [];

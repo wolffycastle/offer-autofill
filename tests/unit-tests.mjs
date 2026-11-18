@@ -6,9 +6,10 @@ import {
   createSampleProfile,
   getProfileValue,
   normalizeProfile,
+  setProfileValue,
 } from "../src/shared/profile-schema.js";
 import { parseResumeTextLocally } from "../src/shared/resume-parser.js";
-import { matchFieldsWithRules, matchOptionValue } from "../src/shared/rule-matcher.js";
+import { matchFieldsWithRules, matchOptionValue, normalizeLabel } from "../src/shared/rule-matcher.js";
 
 function runTests() {
   // 1. Date parsing & formatting
@@ -125,9 +126,45 @@ function runTests() {
   assert.equal(parsedResume.education[0].startDate, "2022-09");
   assert.ok(parsedResume.skills.summary.includes("TypeScript"));
 
-  // Normalize sanity
+  // Normalize & setProfileValue sanity
   const norm = normalizeProfile({ basic: { name: "测试" } });
   assert.equal(norm.education.length, 1);
+  assert.equal(setProfileValue(norm, "basic.city", "杭州"), true);
+  assert.equal(getProfileValue(norm, "basic.city"), "杭州");
+  assert.equal(setProfileValue(norm, "education[1].school", "南京大学"), true);
+  assert.equal(getProfileValue(norm, "education[1].school"), "南京大学");
+  assert.equal(setProfileValue(norm, "__proto__.polluted", "bad"), false);
+
+  // 7. Missing required detection + global/site learned rule replay
+  const partialProfile = normalizeProfile({
+    basic: { name: "测试员", phone: "13800001111" },
+    intention: { targetRole: "" },
+  });
+  const reqFields = [
+    { fieldId: "r1", label: "意向岗位", section: "intention", required: true, inputType: "text", currentValue: "" },
+    { fieldId: "r2", label: "招聘信息来源渠道", section: "intention", required: true, inputType: "text", currentValue: "" },
+  ];
+  const missRes = matchFieldsWithRules(reqFields, partialProfile);
+  assert.equal(missRes.matched.length, 0);
+  const emptySkip = missRes.skipped.find((s) => s.fieldId === "r1");
+  assert.equal(emptySkip.missingKind, "profile_empty");
+  assert.equal(emptySkip.sourcePath, "intention.targetRole");
+  assert.equal(emptySkip.required, true);
+  assert.ok(missRes.unmatched.some((u) => u.fieldId === "r2" && u.required));
+
+  // Record missing values and replay -> both must hit now
+  setProfileValue(partialProfile, emptySkip.sourcePath, "后端开发工程师");
+  const globalRules = {
+    [`intention::${normalizeLabel("招聘信息来源渠道")}`]: {
+      label: "招聘信息来源渠道",
+      section: "intention",
+      fixedValue: "牛客网",
+    },
+  };
+  const replayRes = matchFieldsWithRules(reqFields, partialProfile, { globalLearnedRules: globalRules });
+  assert.equal(replayRes.matched.length, 2);
+  assert.equal(replayRes.matched.find((m) => m.fieldId === "r1").value, "后端开发工程师");
+  assert.equal(replayRes.matched.find((m) => m.fieldId === "r2").value, "牛客网");
 
   console.log("ALL UNIT TESTS PASSED!");
 }

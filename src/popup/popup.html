@@ -79,8 +79,26 @@
         </div>
 
         <div class="tabs">
+          <button class="tab-btn" data-tab="missed" id="missedTabBtn">
+            未命中必填 <span id="missedBadge" class="tab-badge" style="display: none">0</span>
+          </button>
           <button class="tab-btn active" data-tab="filled">填充明细</button>
-          <button class="tab-btn" data-tab="unmatched">未匹配 &amp; 跳过</button>
+          <button class="tab-btn" data-tab="unmatched">全部未填 &amp; 跳过</button>
+        </div>
+
+        <div id="missedToolbar" class="missed-toolbar" style="display: none">
+          <div class="missed-tip">
+            在网页上补填后点击读取，或在下方直接输入保存；下次遇到同名字段会自动命中。
+          </div>
+          <div class="missed-actions">
+            <select id="learnScopeSelect" class="learn-scope-select">
+              <option value="global">跨所有网站记住</option>
+              <option value="site">仅当前网站记住</option>
+            </select>
+            <button id="batchCaptureBtn" class="btn-capture">
+              📥 读取网页补填并记住
+            </button>
+          </div>
         </div>
 
         <div id="detailList" class="detail-list"></div>

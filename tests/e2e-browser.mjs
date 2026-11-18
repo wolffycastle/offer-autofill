@@ -12,8 +12,8 @@ import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { createSampleProfile } from "../src/shared/profile-schema.js";
-import { matchFieldsWithRules } from "../src/shared/rule-matcher.js";
+import { createSampleProfile, setProfileValue } from "../src/shared/profile-schema.js";
+import { matchFieldsWithRules, normalizeLabel } from "../src/shared/rule-matcher.js";
 
 const PROJECT_ROOT = "/Users/mac/.gemini/antigravity/scratch/offer-autofill";
 const CONTENT_FILES = [
@@ -149,7 +149,59 @@ async function runE2E() {
     );
     assert.ok(toastText.includes("网申助手"), "页面右下角应出现填表汇总浮条");
 
-    console.log("E2E CHROMIUM TEST PASSED! Filled state keys:", Object.keys(state).length);
+    // Step 7: Missed Required Catch -> User fills on page -> Capture & Record -> Replay on fresh page
+    // "招聘信息来源渠道" is marked required and wasn't matched on first run
+    const missedChannel = matchRes.unmatched.find(
+      (f) => f.label === "招聘信息来源渠道" && f.required === true
+    );
+    assert.ok(missedChannel, "应将未命中的必填项「招聘信息来源渠道」摘出");
+
+    // Simulate user filling it directly on the webpage, then reading via readFieldValues
+    await page.fill('input[data-state-key="qa.channelSource"]', "牛客网");
+    const capturedValues = await page.evaluate(
+      (fid) => globalThis.__OfferAutofill.scanner.readFieldValues([fid]),
+      missedChannel.fieldId
+    );
+    assert.equal(capturedValues[0].value, "牛客网");
+
+    // Save into globalLearnedRules and also test empty profile field recovery (e.g., basic.wechat)
+    const learnedGlobalRules = {
+      [`${missedChannel.section}::${normalizeLabel(missedChannel.label)}`]: {
+        label: missedChannel.label,
+        section: missedChannel.section,
+        fixedValue: capturedValues[0].value,
+      },
+    };
+    setProfileValue(profile, "basic.age", "22");
+
+    // Reload fresh page and verify the previously missed required field NOW hits automatically!
+    await page.reload();
+    await page.waitForSelector("#checkStateBtn", { state: "visible" });
+    await page.evaluate((code) => {
+      const s = document.createElement("script");
+      s.textContent = code;
+      document.head.appendChild(s);
+    }, combinedScript);
+
+    const scan2 = await page.evaluate(() => globalThis.__OfferAutofill.scanner.scanPageForm());
+    const match2 = matchFieldsWithRules(scan2.fields, profile, {
+      globalLearnedRules: learnedGlobalRules,
+    });
+    const channelMatch = match2.matched.find((m) => m.label === "招聘信息来源渠道");
+    assert.ok(channelMatch && channelMatch.value === "牛客网", "记录后下次应自动命中「招聘信息来源渠道」");
+
+    const plan2 = match2.matched.map((item) => {
+      const meta = scan2.fields.find((f) => f.fieldId === item.fieldId);
+      return { ...item, controlType: meta.controlType, name: meta.name };
+    });
+    await page.evaluate(async (fillPlan) => {
+      await globalThis.__OfferAutofill.filler.executeFillPlan(fillPlan);
+    }, plan2);
+    await page.click("#checkStateBtn", { label: "Verify replayed controlled state" });
+    const state2 = await page.evaluate(() => window.__MOCK_CONTROLLED_STATE__);
+    assert.equal(state2["qa.channelSource"], "牛客网", "重新打开页面后应自动写入受控状态");
+
+    console.log("E2E CHROMIUM TEST PASSED! Filled state keys:", Object.keys(state2).length);
   } finally {
     await task.finish({ keep: [] }).catch(() => {});
     server.kill("SIGTERM");

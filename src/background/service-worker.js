@@ -8,10 +8,16 @@ import {
   parseResumeTextWithLLM,
   testLlmConnection,
 } from "../shared/llm-client.js";
-import { normalizeLabel, matchFieldsWithRules } from "../shared/rule-matcher.js";
+import {
+  normalizeLabel,
+  matchFieldsWithRules,
+  shouldSkipSecurityField,
+} from "../shared/rule-matcher.js";
 import {
   loadAppState,
+  saveGlobalLearnedRules,
   saveLearnedDomainMappings,
+  updateProfileFieldValues,
 } from "../shared/storage.js";
 
 const CONTENT_FILES = [
@@ -70,10 +76,16 @@ async function handleRuntimeMessage(msg) {
     case "SAVE_LEARNED_MAPPING": {
       if (msg.hostname && msg.section && msg.label && msg.path) {
         const key = `${msg.section}::${normalizeLabel(msg.label)}`;
-        await saveLearnedDomainMappings(msg.hostname, [{ key, path: msg.path }]);
+        await saveLearnedDomainMappings(msg.hostname, [
+          { key, label: msg.label, path: msg.path },
+        ]);
       }
       return { ok: true };
     }
+    case "RECORD_AND_FILL_FIELD":
+      return await handleRecordAndFillField(msg);
+    case "BATCH_CAPTURE_MISSED":
+      return await handleBatchCaptureMissed(msg);
     case "TEST_LLM":
       return { ok: true, data: await testLlmConnection(msg.config) };
     case "LLM_PARSE_RESUME":
@@ -209,8 +221,17 @@ async function runScanPreview(tabId, opts) {
 
   const ruleResult = matchFieldsWithRules(allFields, profile, {
     learnedMappings: siteLearned,
+    globalLearnedRules: state.globalLearnedRules,
     overwrite,
   });
+
+  const fieldFrameMap = new Map(allFields.map((f) => [f.fieldId, f]));
+  const missedRequired = buildMissedRequiredList(
+    ruleResult.unmatched,
+    ruleResult.skipped,
+    [],
+    fieldFrameMap
+  );
 
   const report = {
     mode: "preview",
@@ -221,6 +242,7 @@ async function runScanPreview(tabId, opts) {
     matched: ruleResult.matched,
     unmatched: ruleResult.unmatched,
     skipped: ruleResult.skipped,
+    missedRequired,
     results: [],
     timestamp: Date.now(),
   };
@@ -260,6 +282,7 @@ async function runAutofillWorkflow(tabId, opts) {
 
   const ruleResult = matchFieldsWithRules(allFields, profile, {
     learnedMappings: siteLearned,
+    globalLearnedRules: state.globalLearnedRules,
     overwrite,
   });
 
@@ -320,6 +343,29 @@ async function runAutofillWorkflow(tabId, opts) {
     }
   }
 
+  const missedRequired = buildMissedRequiredList(
+    remainingUnmatched,
+    ruleResult.skipped,
+    execResults,
+    fieldFrameMap
+  );
+
+  // 按 frame 标注未命中必填项
+  const missingByFrame = new Map();
+  for (const m of missedRequired) {
+    const fid = m.frameId ?? 0;
+    if (!missingByFrame.has(fid)) missingByFrame.set(fid, []);
+    missingByFrame.get(fid).push(m.fieldId);
+  }
+  for (const [frameId, missingIds] of missingByFrame.entries()) {
+    await runInFrame(
+      tabId,
+      frameId,
+      (ids) => globalThis.__OfferAutofill?.overlay?.applyHighlights([], null, ids),
+      [missingIds]
+    ).catch(() => {});
+  }
+
   // 在主窗口显示汇总浮条
   const okCount = execResults.filter((r) => r.status === "filled" && r.confidence >= 0.8).length;
   const warnCount = execResults.filter((r) => r.status === "filled" && r.confidence < 0.8).length;
@@ -329,7 +375,7 @@ async function runAutofillWorkflow(tabId, opts) {
     tabId,
     0,
     (summary) => globalThis.__OfferAutofill?.overlay?.applyHighlights([], summary),
-    [{ okCount, warnCount, failCount }]
+    [{ okCount, warnCount, failCount, missingReqCount: missedRequired.length }]
   ).catch(() => {});
 
   // 记忆大模型高置信度的路径映射
@@ -345,7 +391,11 @@ async function runAutofillWorkflow(tabId, opts) {
       const meta = fieldFrameMap.get(r.fieldId);
       const norm = normalizeLabel(meta?.label || "");
       if (norm) {
-        toLearn.push({ key: `${meta.section || "basic"}::${norm}`, path: r.sourcePath });
+        toLearn.push({
+          key: `${meta.section || "basic"}::${norm}`,
+          label: meta?.label || norm,
+          path: r.sourcePath,
+        });
       }
     }
   }
@@ -364,6 +414,7 @@ async function runAutofillWorkflow(tabId, opts) {
     failCount,
     unmatchedCount: remainingUnmatched.length,
     skippedCount: ruleResult.skipped.length,
+    missedRequired,
     llmError,
     results: execResults,
     unmatched: remainingUnmatched,
@@ -373,4 +424,235 @@ async function runAutofillWorkflow(tabId, opts) {
 
   lastTabReports.set(tabId, report);
   return { ok: true, report };
+}
+
+function buildMissedRequiredList(unmatched = [], skipped = [], execResults = [], fieldFrameMap) {
+  const list = [];
+  const seen = new Set();
+
+  for (const f of unmatched) {
+    if (!f.required || seen.has(f.fieldId)) continue;
+    seen.add(f.fieldId);
+    list.push({
+      fieldId: f.fieldId,
+      frameId: f.frameId ?? 0,
+      label: f.label || f.placeholder || f.fieldId,
+      placeholder: f.placeholder || "",
+      section: f.section || "basic",
+      entryIndex: f.entryIndex ?? 0,
+      controlType: f.controlType || "text",
+      inputType: f.inputType || "text",
+      name: f.name || "",
+      options: f.options || [],
+      sourcePath: "",
+      missedKind: "unmatched",
+      reason: "规则未识别该必填字段",
+    });
+  }
+
+  for (const s of skipped) {
+    if (!s.required || s.missingKind !== "profile_empty" || seen.has(s.fieldId)) continue;
+    seen.add(s.fieldId);
+    list.push({
+      fieldId: s.fieldId,
+      frameId: s.frameId ?? 0,
+      label: s.label,
+      placeholder: "",
+      section: s.section || "basic",
+      entryIndex: s.entryIndex ?? 0,
+      controlType: s.controlType || "text",
+      inputType: "text",
+      name: "",
+      options: s.options || [],
+      sourcePath: s.sourcePath || "",
+      missedKind: "profile_empty",
+      reason: s.reason || "个人资料库中该字段为空",
+    });
+  }
+
+  for (const r of execResults) {
+    if (r.status !== "failed" || seen.has(r.fieldId)) continue;
+    const meta = fieldFrameMap.get(r.fieldId);
+    if (!meta?.required) continue;
+    seen.add(r.fieldId);
+    list.push({
+      fieldId: r.fieldId,
+      frameId: r.frameId ?? 0,
+      label: meta.label || meta.placeholder || r.fieldId,
+      placeholder: meta.placeholder || "",
+      section: meta.section || "basic",
+      entryIndex: meta.entryIndex ?? 0,
+      controlType: meta.controlType || "text",
+      inputType: meta.inputType || "text",
+      name: meta.name || "",
+      options: meta.options || [],
+      sourcePath: r.sourcePath || "",
+      missedKind: "fill_failed",
+      reason: r.reason || "填充失败",
+    });
+  }
+
+  return list;
+}
+
+async function persistLearnedItem({ profileId, hostname, field, value, targetPath, scope }) {
+  const cleanVal = value != null ? String(value).trim() : "";
+  if (!cleanVal || shouldSkipSecurityField(field)) return false;
+
+  const section = field.section || "basic";
+  const label = field.label || field.placeholder || "";
+  const norm = normalizeLabel(label);
+  const pathToWrite = targetPath || field.sourcePath || "";
+
+  if (pathToWrite && pathToWrite !== "__fixed__") {
+    await updateProfileFieldValues(profileId, [{ path: pathToWrite, value: cleanVal }]);
+    // 如果之前规则不认识该标签，则顺便记录标签映射，保证下次同义词直接命中
+    if (norm && field.missedKind !== "profile_empty") {
+      const ruleEntry = { key: `${section}::${norm}`, label, path: pathToWrite, section };
+      if (scope === "site" && hostname) {
+        await saveLearnedDomainMappings(hostname, [ruleEntry]);
+      } else {
+        await saveGlobalLearnedRules([ruleEntry]);
+      }
+    }
+    return true;
+  }
+
+  if (norm) {
+    const ruleEntry = {
+      key: `${section}::${norm}`,
+      label,
+      section,
+      fixedValue: cleanVal,
+    };
+    if (scope === "site" && hostname) {
+      await saveLearnedDomainMappings(hostname, [ruleEntry]);
+    } else {
+      await saveGlobalLearnedRules([ruleEntry]);
+    }
+    return true;
+  }
+  return false;
+}
+
+async function handleRecordAndFillField(msg) {
+  const tabId = msg.tabId || (await getActiveTabId());
+  const state = await loadAppState();
+  const profileId = msg.profileId || state.activeProfileId;
+  const field = msg.field;
+  const value = msg.value != null ? String(msg.value).trim() : "";
+
+  if (!field || !value) {
+    return { ok: false, error: "请先输入或选择要保存的补充内容" };
+  }
+  if (shouldSkipSecurityField(field)) {
+    return { ok: false, error: "安全边界：密码与验证码字段不允许保存" };
+  }
+
+  await persistLearnedItem({
+    profileId,
+    hostname: msg.hostname || "",
+    field,
+    value,
+    targetPath: msg.targetPath || "",
+    scope: msg.scope || "global",
+  });
+
+  if (msg.fillToPage) {
+    await runInFrame(
+      tabId,
+      field.frameId ?? 0,
+      async (planItem) => {
+        const res = await globalThis.__OfferAutofill?.filler?.executeFillPlan([planItem]);
+        if (res?.[0]) {
+          globalThis.__OfferAutofill?.overlay?.markSingleResult(res[0]);
+        }
+        return res;
+      },
+      [
+        {
+          fieldId: field.fieldId,
+          label: field.label,
+          controlType: field.controlType,
+          name: field.name,
+          value,
+          confidence: 1,
+          source: "learned",
+          sourcePath: msg.targetPath || field.sourcePath || "learned-fixed",
+          reason: "已补充并记忆",
+        },
+      ]
+    );
+  }
+
+  const cached = lastTabReports.get(tabId);
+  if (cached && Array.isArray(cached.missedRequired)) {
+    const hit = cached.missedRequired.find((m) => m.fieldId === field.fieldId);
+    if (hit) {
+      hit.recorded = true;
+      hit.recordedValue = value;
+    }
+  }
+
+  return { ok: true };
+}
+
+async function handleBatchCaptureMissed(msg) {
+  const tabId = msg.tabId || (await getActiveTabId());
+  const state = await loadAppState();
+  const profileId = msg.profileId || state.activeProfileId;
+  const fields = Array.isArray(msg.fields) ? msg.fields : [];
+  if (fields.length === 0) return { ok: true, captured: [] };
+
+  const byFrame = new Map();
+  for (const f of fields) {
+    const fid = f.frameId ?? 0;
+    if (!byFrame.has(fid)) byFrame.set(fid, []);
+    byFrame.get(fid).push(f.fieldId);
+  }
+
+  const readValues = new Map();
+  for (const [frameId, ids] of byFrame.entries()) {
+    const res = await runInFrame(
+      tabId,
+      frameId,
+      (idList) => globalThis.__OfferAutofill?.scanner?.readFieldValues(idList) || [],
+      [ids]
+    ).catch(() => []);
+    for (const item of res || []) {
+      if (item?.fieldId && item.value) {
+        readValues.set(item.fieldId, item.value);
+      }
+    }
+  }
+
+  const captured = [];
+  for (const f of fields) {
+    const val = readValues.get(f.fieldId);
+    if (!val) continue;
+    const saved = await persistLearnedItem({
+      profileId,
+      hostname: msg.hostname || "",
+      field: f,
+      value: val,
+      targetPath: f.sourcePath || "",
+      scope: msg.scope || "global",
+    });
+    if (saved) {
+      captured.push({ fieldId: f.fieldId, label: f.label, value: val });
+    }
+  }
+
+  const cached = lastTabReports.get(tabId);
+  if (cached && Array.isArray(cached.missedRequired)) {
+    const capMap = new Map(captured.map((c) => [c.fieldId, c.value]));
+    for (const item of cached.missedRequired) {
+      if (capMap.has(item.fieldId)) {
+        item.recorded = true;
+        item.recordedValue = capMap.get(item.fieldId);
+      }
+    }
+  }
+
+  return { ok: true, captured };
 }

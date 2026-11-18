@@ -148,6 +148,54 @@ export function getProfileValue(profile, path) {
   return cur == null ? "" : String(cur).trim();
 }
 
+const ARRAY_CREATORS = {
+  education: createEmptyEducation,
+  internships: createEmptyInternship,
+  projects: createEmptyProject,
+};
+
+/**
+ * 根据路径写入个人资料字段（如 "basic.city" 或 "education[0].gpa"），返回是否写入成功。
+ */
+export function setProfileValue(profile, path, value) {
+  if (!profile || !path || typeof path !== "string") return false;
+  const segments = path.replace(/\[(\d+)\]/g, ".$1").split(".").filter(Boolean);
+  if (segments.length < 2) return false;
+  if (segments.some((s) => s === "__proto__" || s === "constructor" || s === "prototype")) {
+    return false;
+  }
+
+  let cur = profile;
+  for (let i = 0; i < segments.length - 1; i++) {
+    const seg = segments[i];
+    const nextSeg = segments[i + 1];
+    if (Array.isArray(cur) && /^\d+$/.test(seg)) {
+      const idx = Number(seg);
+      const rootKey = segments[0];
+      const creator = ARRAY_CREATORS[rootKey] || (() => ({}));
+      while (cur.length <= idx) {
+        cur.push(creator());
+      }
+      cur = cur[idx];
+    } else if (cur && typeof cur === "object") {
+      if (cur[seg] == null || typeof cur[seg] !== "object") {
+        cur[seg] = /^\d+$/.test(nextSeg) ? [] : {};
+      }
+      cur = cur[seg];
+    } else {
+      return false;
+    }
+  }
+
+  const leaf = segments[segments.length - 1];
+  if (!cur || typeof cur !== "object" || !(leaf in cur)) {
+    // 只允许写入已知 Schema 字段，防止污染
+    return false;
+  }
+  cur[leaf] = value == null ? "" : String(value).trim();
+  return true;
+}
+
 /**
  * 生成一份仅供 LLM 语义映射使用的脱敏资料摘要：
  * - 隐藏手机号、证件号、邮箱、姓名等强隐私 PII 值的具体内容（仅告知字段路径可用），

@@ -489,10 +489,10 @@ const FIELD_RULES = [
  * 执行本地规则匹配：对每个字段返回命中方案或加入未匹配列表。
  * @param {Array} fields - 页面扫描出的字段列表
  * @param {object} profile - 标准化求职资料
- * @param {{ learnedMappings?: Record<string, { path: string }>, overwrite?: boolean }} options
+ * @param {{ learnedMappings?: Record<string, object>, globalLearnedRules?: Record<string, object>, overwrite?: boolean }} options
  */
 export function matchFieldsWithRules(fields, profile, options = {}) {
-  const { learnedMappings = {}, overwrite = false } = options;
+  const { learnedMappings = {}, globalLearnedRules = {}, overwrite = false } = options;
   const matched = [];
   const unmatched = [];
   const skipped = [];
@@ -501,7 +501,12 @@ export function matchFieldsWithRules(fields, profile, options = {}) {
     if (shouldSkipSecurityField(field)) {
       skipped.push({
         fieldId: field.fieldId,
+        frameId: field.frameId ?? 0,
         label: field.label || field.placeholder || field.fieldId,
+        required: false,
+        section: field.section || "basic",
+        entryIndex: field.entryIndex ?? 0,
+        missingKind: "security",
         reason: "安全边界：跳过密码/验证码/文件上传字段",
       });
       continue;
@@ -510,7 +515,12 @@ export function matchFieldsWithRules(fields, profile, options = {}) {
     if (!overwrite && !isEffectivelyEmptyValue(field.currentValue)) {
       skipped.push({
         fieldId: field.fieldId,
+        frameId: field.frameId ?? 0,
         label: field.label || field.placeholder || field.fieldId,
+        required: Boolean(field.required),
+        section: field.section || "basic",
+        entryIndex: field.entryIndex ?? 0,
+        missingKind: "already_filled",
         reason: "已有填写内容，保留现状",
       });
       continue;
@@ -523,25 +533,40 @@ export function matchFieldsWithRules(fields, profile, options = {}) {
       `${field.label || ""} ${field.placeholder || ""} ${field.name || ""}`
     );
 
-    // 1. Learned domain-specific mapping cache
-    const learnedKey = `${section}::${normLabel}`;
-    if (normLabel && learnedMappings[learnedKey]) {
-      const learnedPath = resolveEntryIndex(learnedMappings[learnedKey].path, entryIndex);
-      const rawVal = getProfileValue(profile, learnedPath);
-      if (rawVal) {
-        const prepared = prepareFieldValue(rawVal, field, { isDate: /Date$/.test(learnedPath) });
-        if (prepared !== null) {
-          matched.push({
-            fieldId: field.fieldId,
-            label: field.label || field.placeholder || field.fieldId,
-            sourcePath: learnedPath,
-            value: prepared,
-            confidence: 0.96,
-            source: "learned",
-            reason: "复用本站点已记忆字段映射",
-          });
-          continue;
-        }
+    // 1. Learned domain-specific & global rules (supporting both profile path and fixedValue)
+    const learnedCandidate = findLearnedCandidate(
+      normLabel,
+      section,
+      learnedMappings,
+      globalLearnedRules
+    );
+    if (learnedCandidate) {
+      const resolved = resolveLearnedCandidate(
+        learnedCandidate.entry,
+        field,
+        profile,
+        entryIndex,
+        learnedCandidate.scopeLabel
+      );
+      if (resolved?.match) {
+        matched.push(resolved.match);
+        continue;
+      }
+      if (resolved?.emptyProfilePath) {
+        skipped.push({
+          fieldId: field.fieldId,
+          frameId: field.frameId ?? 0,
+          label: field.label || field.placeholder || field.fieldId,
+          required: Boolean(field.required),
+          section,
+          entryIndex,
+          controlType: field.controlType,
+          options: field.options || [],
+          sourcePath: resolved.emptyProfilePath,
+          missingKind: "profile_empty",
+          reason: `已记住映射字段，但当前资料库中（${resolved.emptyProfilePath}）为空`,
+        });
+        continue;
       }
     }
 
@@ -583,8 +608,15 @@ export function matchFieldsWithRules(fields, profile, options = {}) {
         // 规则命中了语义，但用户的资料卡这一项本身为空（比如期望薪资留空）
         skipped.push({
           fieldId: field.fieldId,
+          frameId: field.frameId ?? 0,
           label: field.label || field.placeholder || field.fieldId,
+          required: Boolean(field.required),
+          section,
+          entryIndex,
+          controlType: field.controlType,
+          options: field.options || [],
           sourcePath,
+          missingKind: "profile_empty",
           reason: `匹配到「${rule.name}」，但个人资料中该项为空，不作猜测`,
         });
         ruleMatched = true;
@@ -618,6 +650,67 @@ export function matchFieldsWithRules(fields, profile, options = {}) {
   }
 
   return { matched, unmatched, skipped };
+}
+
+function findLearnedCandidate(normLabel, section, learnedMappings, globalLearnedRules) {
+  if (!normLabel) return null;
+  const keys = [`${section}::${normLabel}`, `*::${normLabel}`, normLabel];
+  for (const k of keys) {
+    if (learnedMappings?.[k]) {
+      return { entry: learnedMappings[k], scopeLabel: "复用本站点记忆" };
+    }
+  }
+  for (const k of keys) {
+    if (globalLearnedRules?.[k]) {
+      return { entry: globalLearnedRules[k], scopeLabel: "复用跨站通用记忆" };
+    }
+  }
+  return null;
+}
+
+function resolveLearnedCandidate(entry, field, profile, entryIndex, scopeLabel) {
+  if (!entry) return null;
+  if (entry.path) {
+    const learnedPath = resolveEntryIndex(entry.path, entryIndex);
+    const rawVal = getProfileValue(profile, learnedPath);
+    if (!rawVal) {
+      // 若同时存了 fixedValue 作兜底，可回退；否则标记资料为空
+      if (!entry.fixedValue) {
+        return { emptyProfilePath: learnedPath };
+      }
+    } else {
+      const prepared = prepareFieldValue(rawVal, field, { isDate: /Date$/.test(learnedPath) });
+      if (prepared === null) return null;
+      return {
+        match: {
+          fieldId: field.fieldId,
+          label: field.label || field.placeholder || field.fieldId,
+          sourcePath: learnedPath,
+          value: prepared,
+          confidence: 0.96,
+          source: "learned",
+          reason: `${scopeLabel}（${learnedPath}）`,
+        },
+      };
+    }
+  }
+
+  if (entry.fixedValue) {
+    const prepared = prepareFieldValue(entry.fixedValue, field);
+    if (prepared === null) return null;
+    return {
+      match: {
+        fieldId: field.fieldId,
+        label: field.label || field.placeholder || field.fieldId,
+        sourcePath: "learned-fixed",
+        value: prepared,
+        confidence: 0.94,
+        source: "learned",
+        reason: `${scopeLabel}（已记录回答）`,
+      },
+    };
+  }
+  return null;
 }
 
 function resolveEntryIndex(pathTemplate, entryIndex) {
