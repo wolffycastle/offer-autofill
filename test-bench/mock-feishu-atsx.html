@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>模拟飞书招聘（atsx / ud__ / CSS Modules）网申表单</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+        background: #f5f6f7;
+        padding: 24px;
+      }
+      .card__a1 {
+        max-width: 780px;
+        margin: 0 auto 18px;
+        background: #fff;
+        border-radius: 10px;
+        padding: 20px;
+      }
+      .header__a1 {
+        font-size: 16px;
+        font-weight: 700;
+        margin-bottom: 14px;
+      }
+      .grid__a1 {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 14px;
+      }
+      .fieldBox__9f3a {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .titleText__9f3a {
+        font-size: 13px;
+        color: #1f2329;
+        font-weight: 600;
+      }
+      .atsx-form-item-required:after {
+        content: "*";
+        color: #f54a45;
+        margin-left: 4px;
+      }
+      .atsx-input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 8px 10px;
+        border: 1px solid #d0d3d6;
+        border-radius: 6px;
+      }
+      .atsx-phone {
+        display: flex;
+        gap: 6px;
+      }
+      .atsx-select {
+        border: 1px solid #d0d3d6;
+        border-radius: 6px;
+        padding: 7px 10px;
+        cursor: pointer;
+        background: #fff;
+      }
+      .atsx-select-selection__placeholder {
+        color: #8f959e;
+      }
+      .atsx-select-dropdown {
+        position: fixed;
+        background: #fff;
+        border: 1px solid #dee0e3;
+        border-radius: 6px;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+        padding: 4px;
+        z-index: 9999;
+      }
+      .atsx-select-dropdown-menu-item {
+        padding: 6px 12px;
+        cursor: pointer;
+      }
+      .ud__picker-rangeInput {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid #d0d3d6;
+        border-radius: 6px;
+        padding: 4px 8px;
+      }
+      .ud__picker-input {
+        border: none;
+        outline: none;
+        width: 45%;
+        padding: 4px;
+      }
+      .splitRow__7c1 {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 12px;
+      }
+      .splitLeft__7c1 {
+        width: 90px;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .splitRight__7c1 {
+        flex: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card__a1">
+      <div class="header__a1">基本信息</div>
+      <div class="grid__a1">
+        <!-- CSS module wrapper outside atsx-form-item + ::after asterisk + bare placeholder -->
+        <div class="fieldBox__9f3a">
+          <div class="titleText__9f3a"><span class="atsx-form-item-required">姓名</span></div>
+          <div class="atsx-form-item">
+            <div class="atsx-form-item-children">
+              <input class="atsx-input" data-k="name" placeholder="请输入" />
+            </div>
+          </div>
+        </div>
+
+        <div class="fieldBox__9f3a">
+          <div class="titleText__9f3a"><span class="atsx-form-item-required">年龄</span></div>
+          <div class="atsx-form-item">
+            <input class="atsx-input" data-k="age" placeholder="请输入" />
+          </div>
+        </div>
+
+        <div class="fieldBox__9f3a">
+          <div class="titleText__9f3a"><span class="atsx-form-item-required">手机号码</span></div>
+          <div class="atsx-form-item">
+            <div class="atsx-phone">
+              <div class="atsx-select atsx-phone-select" data-k="phoneCode">
+                <div class="atsx-select-selection" role="combobox">
+                  <span class="atsx-select-selection-selected-value">+86</span>
+                </div>
+              </div>
+              <input class="atsx-input" data-k="mobile" placeholder="请输入" />
+            </div>
+          </div>
+        </div>
+
+        <div class="fieldBox__9f3a">
+          <div class="titleText__9f3a"><span class="atsx-form-item-required">邮箱</span></div>
+          <div class="atsx-form-item">
+            <input class="atsx-input" data-k="email" placeholder="请输入" />
+          </div>
+        </div>
+
+        <div class="fieldBox__9f3a">
+          <div class="titleText__9f3a"><span class="atsx-form-item-required">性别</span></div>
+          <div class="atsx-form-item">
+            <div class="atsx-select" data-k="gender" data-opts='["男","女"]'>
+              <div class="atsx-select-selection" role="combobox">
+                <span class="atsx-select-selection__placeholder">请选择</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Intentionally empty in profile to test required detection -->
+        <div class="fieldBox__9f3a">
+          <div class="titleText__9f3a"><span class="atsx-form-item-required">期望工作地点</span></div>
+          <div class="atsx-form-item">
+            <input class="atsx-input" data-k="preferredCity" placeholder="请选择" />
+          </div>
+        </div>
+      </div>
+
+      <div class="splitRow__7c1">
+        <div class="splitLeft__7c1"><span>所在地点</span></div>
+        <div class="splitRight__7c1">
+          <div><input class="atsx-input" data-k="currentCity" placeholder="请输入" /></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card__a1">
+      <div class="header__a1">教育经历</div>
+      <div class="grid__a1">
+        <div class="fieldBox__9f3a">
+          <div class="titleText__9f3a"><span class="atsx-form-item-required">学校名称</span></div>
+          <div class="atsx-form-item">
+            <input class="atsx-input" data-k="school" placeholder="请输入" />
+          </div>
+        </div>
+
+        <div class="fieldBox__9f3a">
+          <div class="titleText__9f3a"><span class="atsx-form-item-required">学历</span></div>
+          <div class="atsx-form-item">
+            <div class="atsx-select" data-k="degree" data-opts='["专科","本科","硕士","博士"]'>
+              <div class="atsx-select-selection" role="combobox">
+                <span class="atsx-select-selection__placeholder">请选择</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="fieldBox__9f3a">
+          <div class="titleText__9f3a"><span class="atsx-form-item-required">专业</span></div>
+          <div class="atsx-form-item">
+            <input class="atsx-input" data-k="major" placeholder="请输入" />
+          </div>
+        </div>
+
+        <div class="fieldBox__9f3a">
+          <div class="titleText__9f3a"><span class="atsx-form-item-required">起止时间</span></div>
+          <div class="atsx-form-item">
+            <div class="ud__picker">
+              <div class="ud__picker-rangeInput">
+                <input class="ud__picker-input" data-k="eduStart" placeholder="开始时间" />
+                <span>-</span>
+                <input class="ud__picker-input" data-k="eduEnd" placeholder="结束时间" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const state = {};
+      window.__FEISHU_STATE__ = state;
+      document.querySelectorAll("input").forEach((el) => {
+        el.addEventListener("input", () => {
+          state[el.dataset.k] = el.value;
+        });
+      });
+
+      let popup = null;
+      document.addEventListener("click", () => {
+        if (popup) { popup.remove(); popup = null; }
+      });
+
+      document.querySelectorAll(".atsx-select[data-opts]").forEach((sel) => {
+        sel.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (popup) popup.remove();
+          const opts = JSON.parse(sel.dataset.opts);
+          const rect = sel.getBoundingClientRect();
+          popup = document.createElement("div");
+          popup.className = "atsx-select-dropdown";
+          popup.style.left = rect.left + "px";
+          popup.style.top = rect.bottom + 4 + "px";
+          popup.style.width = rect.width + "px";
+          for (const t of opts) {
+            const item = document.createElement("div");
+            item.className = "atsx-select-dropdown-menu-item";
+            item.textContent = t;
+            item.addEventListener("click", (ev) => {
+              ev.stopPropagation();
+              const holder = sel.querySelector(".atsx-select-selection");
+              holder.innerHTML = `<span class="atsx-select-selection-selected-value">${t}</span>`;
+              state[sel.dataset.k] = t;
+              popup.remove();
+              popup = null;
+            });
+            popup.appendChild(item);
+          }
+          document.body.appendChild(popup);
+        });
+      });
+    </script>
+  </body>
+</html>

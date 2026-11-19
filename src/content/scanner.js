@@ -4,7 +4,7 @@
   ns._loadedScanner = true;
 
   const CUSTOM_SELECT_WRAPPER_SEL =
-    '.ant-select, .arco-select, .semi-select, .el-select, .next-select, [role="combobox"], [aria-haspopup="listbox"], [data-custom-select="true"]';
+    '.ant-select, .atsx-select, .ud__select, .arco-select, .semi-select, .el-select, .next-select, .atsx-cascader-picker, .ud__cascader, [role="combobox"], [aria-haspopup="listbox"], [data-custom-select="true"]';
 
   function scanPageForm() {
     const h = ns.domHelpers;
@@ -40,8 +40,17 @@
       if (seenElements.has(wrapper)) continue;
       seenElements.add(wrapper);
 
-      // Mark any inner input as seen so we don't duplicate
-      wrapper.querySelectorAll("input").forEach((inp) => seenElements.add(inp));
+      // Mark any inner input/combobox as seen so we don't double-scan nested triggers
+      wrapper
+        .querySelectorAll('input, [role="combobox"], [aria-haspopup="listbox"]')
+        .forEach((n) => seenElements.add(n));
+
+      // Skip phone country code selector (+86) so we don't confuse it with the phone number
+      if (
+        wrapper.matches?.('.atsx-phone-select, [class*="phone-select" i], [class*="country-code" i]')
+      ) {
+        continue;
+      }
 
       const labelInfo = h.extractLabelInfo(wrapper);
       const { section, container } = h.getSectionContainer(wrapper);

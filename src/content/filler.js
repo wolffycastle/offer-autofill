@@ -6,6 +6,11 @@
   const OPTION_SELECTORS = [
     '[role="option"]',
     ".ant-select-item-option",
+    ".atsx-select-dropdown-menu-item",
+    ".atsx-select-item-option",
+    ".ud__select-option",
+    ".ud__menu-normal-item",
+    ".ud__menu-item",
     ".arco-select-option",
     ".semi-select-option",
     ".el-select-dropdown__item",
@@ -126,6 +131,12 @@
 
       // 5. Standard <input> / <textarea>
       h.setNativeValue(el, String(value));
+      if (
+        tag === "input" &&
+        el.closest('.ud__picker, .atsx-calendar-picker, .ant-picker, .arco-picker')
+      ) {
+        pressEnter(el);
+      }
       return { fieldId: planItem.fieldId, status: "filled", appliedValue: String(value) };
     } catch (err) {
       return {
@@ -167,17 +178,17 @@
 
     const trigger =
       wrapper.querySelector(
-        '.ant-select-selector, .arco-select-view, .semi-select-selection, .el-input__wrapper, [role="button"]'
+        '.ant-select-selector, .atsx-select-selection, .ud__select-selector, .ud__select-selection, .arco-select-view, .semi-select-selection, .el-input__wrapper, [role="button"]'
       ) || wrapper;
 
     simulateClick(trigger);
-    await sleep(80);
+    await sleep(90);
 
-    // 若是可搜索下拉框，且存在可输入 <input>，尝试输入值进行过滤
-    const searchInput = wrapper.querySelector("input:not([readonly])");
-    if (searchable && searchInput) {
+    // 若是可搜索下拉框，且存在可输入 <input>，尝试输入值进行过滤（AntD v3 / Feishu Hire 需展开后才能找到搜索框）
+    const searchInput = wrapper.querySelector('input:not([type="hidden"]):not([readonly])');
+    if ((searchable || searchInput) && searchInput) {
       h.setNativeValue(searchInput, String(value));
-      await sleep(160);
+      await sleep(180);
     }
 
     let optionNodes = await waitForVisibleOptions(existingVisible, h, 550);

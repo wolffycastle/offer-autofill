@@ -6,7 +6,7 @@ import { formatDateForField, formatDateRange, parseFlexibleDate } from "./date-u
 import { getProfileValue } from "./profile-schema.js";
 
 const SKIP_SECURITY_RE =
-  /(验证码|图形验证|短信验证|手机验证|邮箱验证|动态码|校验码|安全码|登录密码|确认密码|原密码|新密码|password|passwd|captcha|verify.?code|sms.?code|otp|pin码)/i;
+  /(验证码|图形验证|短信验证|手机验证|邮箱验证|动态码|校验码|安全码|登录密码|确认密码|原密码|新密码|手机区号|password|passwd|captcha|verify.?code|sms.?code|otp|pin码)/i;
 
 const PLACEHOLDER_VALUE_RE =
   /^(请选择|请填写|请输入|请上传|选择|填写|select\b|please\s+(select|enter|choose))/i;
@@ -282,9 +282,9 @@ const FIELD_RULES = [
     name: "意向城市",
     pathFn: (sec, idx) => (sec === "internships" ? `internships[${idx}].city` : "intention.targetCities"),
     match: (t, _f, sec) =>
-      sec !== "basic" &&
-      (/(意向城市|期望城市|工作城市|意向地点|期望地点|工作地点|preferred city|location)/.test(t) ||
-        (sec === "internships" && /(城市|地点|city)/.test(t))),
+      /(意向城市|期望城市|意向地点|期望地点|期望工作地点|意向工作地点|preferred city|preferred work location)/.test(t) ||
+      (sec !== "basic" && /(工作城市|工作地点|location)/.test(t)) ||
+      (sec === "internships" && /(城市|地点|city)/.test(t)),
   },
   {
     name: "期望薪资",
@@ -332,15 +332,6 @@ const FIELD_RULES = [
     isDate: true,
   },
   {
-    name: "起止时间区间",
-    pathFn: (sec, idx) => `${sec === "projects" ? "projects" : sec === "internships" ? "internships" : "education"}[${idx}]`,
-    match: (t, _f, sec) =>
-      ["education", "internships", "projects"].includes(sec) &&
-      /(起止时间|时间段|在读时间|实习时间|工作时间|项目时间)/.test(t) &&
-      !/(开始|结束|起始|截止)/.test(t),
-    datePart: "range",
-  },
-  {
     name: "开始时间",
     pathFn: (sec, idx) => {
       if (sec === "internships") return `internships[${idx}].startDate`;
@@ -349,7 +340,7 @@ const FIELD_RULES = [
     },
     match: (t, _f, sec) =>
       ["education", "internships", "projects"].includes(sec) &&
-      /(开始时间|起始时间|开始年月|起始日期|入职时间|start\s*date|from)/.test(t),
+      /(开始时间|起始时间|开始年月|起始日期|开始日期|入职时间|start\s*date|from)/.test(t),
     isDate: true,
   },
   {
@@ -361,8 +352,17 @@ const FIELD_RULES = [
     },
     match: (t, _f, sec) =>
       ["education", "internships", "projects"].includes(sec) &&
-      /(结束时间|截止时间|结束年月|终止时间|离职时间|end\s*date|\bto\b)/.test(t),
+      /(结束时间|截止时间|结束年月|结束日期|终止时间|离职时间|end\s*date|\bto\b)/.test(t),
     isDate: true,
+  },
+  {
+    name: "起止时间区间",
+    pathFn: (sec, idx) => `${sec === "projects" ? "projects" : sec === "internships" ? "internships" : "education"}[${idx}]`,
+    match: (t, _f, sec) =>
+      ["education", "internships", "projects"].includes(sec) &&
+      /(起止时间|时间段|在读时间|实习时间|工作时间|项目时间)/.test(t) &&
+      !/(开始|结束|起始|截止)/.test(t),
+    datePart: "range",
   },
 
   // ---- 描述 / 技能 / 评价 ----
@@ -464,7 +464,7 @@ const FIELD_RULES = [
     name: "现居城市",
     pathFn: () => "basic.city",
     match: (t) =>
-      /(现居|现居住|居住地|居住城市|所在城市|常驻城市|目前所在城市|当前城市|通讯地址|现住址|current city)/.test(
+      /(现居|现居住|居住地|居住城市|所在城市|所在地点|常驻城市|目前所在城市|当前城市|通讯地址|现住址|current city|current location)/.test(
         t
       ) && !/(意向|期望|目标)/.test(t),
   },

@@ -201,7 +201,59 @@ async function runE2E() {
     const state2 = await page.evaluate(() => window.__MOCK_CONTROLLED_STATE__);
     assert.equal(state2["qa.channelSource"], "牛客网", "重新打开页面后应自动写入受控状态");
 
-    console.log("E2E CHROMIUM TEST PASSED! Filled state keys:", Object.keys(state2).length);
+    // Step 8: Feishu Hire (atsx / ud__ / CSS Modules) regression test
+    await page.goto(`http://127.0.0.1:${port}/test-bench/mock-feishu-atsx.html`);
+    await page.waitForSelector('input[data-k="name"]', { state: "visible" });
+    await page.evaluate((code) => {
+      const s = document.createElement("script");
+      s.textContent = code;
+      document.head.appendChild(s);
+    }, combinedScript);
+
+    const fsScan = await page.evaluate(() => globalThis.__OfferAutofill.scanner.scanPageForm());
+    assert.equal(fsScan.fields.length, 12, `飞书沙盒应扫描到 12 个有效控件（不含+86区号），实际: ${fsScan.fields.length}`);
+    assert.ok(fsScan.fields.every((f) => f.label && !f.label.startsWith("oa_f_")), "所有飞书表单控件均应提取出可读 label");
+
+    const nameField = fsScan.fields.find((f) => f.label === "姓名");
+    assert.ok(nameField && nameField.required === true, "应识别 CSS ::after 的必填星号");
+
+    const feishuSample = structuredClone(profile);
+    feishuSample.basic.age = "22";
+    feishuSample.intention.targetCities = ""; // simulate empty preferredCity to test required detection
+
+    const fsMatch = matchFieldsWithRules(fsScan.fields, feishuSample, {});
+    const fsPlan = fsMatch.matched.map((item) => {
+      const meta = fsScan.fields.find((f) => f.fieldId === item.fieldId);
+      return { ...item, controlType: meta.controlType, name: meta.name };
+    });
+
+    const fsExec = await page.evaluate(async (p) => {
+      return await globalThis.__OfferAutofill.filler.executeFillPlan(p);
+    }, fsPlan);
+    const fsFailed = fsExec.filter((r) => r.status === "failed");
+    assert.equal(fsFailed.length, 0, `飞书控件不应填充失败: ${JSON.stringify(fsFailed)}`);
+
+    const fsState = await page.evaluate(() => window.__FEISHU_STATE__);
+    assert.equal(fsState.name, "陈思远");
+    assert.equal(fsState.age, "22");
+    assert.equal(fsState.mobile, "13800138000");
+    assert.equal(fsState.phoneCode, undefined, "+86 电话区号不应被覆盖");
+    assert.equal(fsState.email, "siyuan.chen@example.com");
+    assert.equal(fsState.gender, "男");
+    assert.equal(fsState.currentCity, "上海");
+    assert.equal(fsState.school, "复旦大学");
+    assert.equal(fsState.degree, "硕士");
+    assert.equal(fsState.major, "计算机技术");
+    assert.equal(fsState.eduStart, "2024-09");
+    assert.equal(fsState.eduEnd, "2026-06");
+
+    const emptyPreferred = fsMatch.skipped.find((s) => s.label === "期望工作地点");
+    assert.ok(
+      emptyPreferred && emptyPreferred.required === true && emptyPreferred.missingKind === "profile_empty",
+      "资料为空的必填项「期望工作地点」应被摘出"
+    );
+
+    console.log("E2E CHROMIUM TEST PASSED! Filled state keys:", Object.keys(state2).length, "+ Feishu keys:", Object.keys(fsState).length);
   } finally {
     await task.finish({ keep: [] }).catch(() => {});
     server.kill("SIGTERM");
