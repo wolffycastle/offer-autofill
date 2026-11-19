@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
+import http from "node:http";
 import { formatDateForField, formatDateRange, parseFlexibleDate } from "../src/shared/date-utils.js";
-import { buildFieldMappingMessages, extractJsonFromText } from "../src/shared/llm-client.js";
+import {
+  buildFieldMappingMessages,
+  extractJsonFromText,
+  mapUnmatchedFieldsWithLLM,
+} from "../src/shared/llm-client.js";
 import {
   buildSanitizedProfileForLLM,
   createSampleProfile,
@@ -11,7 +16,7 @@ import {
 import { parseResumeTextLocally } from "../src/shared/resume-parser.js";
 import { matchFieldsWithRules, matchOptionValue, normalizeLabel } from "../src/shared/rule-matcher.js";
 
-function runTests() {
+async function runTests() {
   // 1. Date parsing & formatting
   assert.deepEqual(parseFlexibleDate("2024.9"), {
     isPresent: false,
@@ -166,7 +171,77 @@ function runTests() {
   assert.equal(replayRes.matched.find((m) => m.fieldId === "r1").value, "后端开发工程师");
   assert.equal(replayRes.matched.find((m) => m.fieldId === "r2").value, "牛客网");
 
+  // 8. End-to-end LLM chunking + privacy-preserving local PII/date resolution over mock OpenAI endpoint
+  let requestCount = 0;
+  const server = http.createServer((req, res) => {
+    let body = "";
+    req.on("data", (chunk) => (body += chunk));
+    req.on("end", () => {
+      requestCount++;
+      assert.equal(req.headers.authorization, "Bearer test-key-123");
+      assert.ok(!body.includes(sample.basic.phone), "手机号绝不应发给大模型");
+      assert.ok(!body.includes(sample.basic.idNumber), "身份证号绝不应发给大模型");
+      assert.ok(!body.includes(sample.basic.email), "邮箱绝不应发给大模型");
+
+      const parsedReq = JSON.parse(body);
+      const userPayload = JSON.parse(parsedReq.messages[1].content);
+      const mappings = [];
+      for (const f of userPayload.fields) {
+        if (f.fieldId === "u_birth") {
+          mappings.push({ fieldId: "u_birth", sourcePath: "basic.birthday", filledValue: null, confidence: 0.92, reason: "出生日期" });
+        } else if (f.fieldId === "u_tel") {
+          mappings.push({ fieldId: "u_tel", sourcePath: "basic.phone", filledValue: null, confidence: 0.95, reason: "联系电话" });
+        } else if (f.fieldId === "u_status") {
+          mappings.push({ fieldId: "u_status", sourcePath: null, filledValue: "2026届应届毕业生", confidence: 0.9, reason: "语义匹配届别" });
+        }
+      }
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ mappings }) } }] }));
+    });
+  });
+
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address();
+  try {
+    const bulkFields = [
+      { fieldId: "u_birth", label: "诞辰", placeholder: "YYYY/MM/DD", contextHint: "候选人诞辰", section: "basic", controlType: "text" },
+      { fieldId: "u_tel", label: "", contextHint: "常用联络方式（11位数字）", section: "basic", controlType: "text" },
+      ...Array.from({ length: 19 }, (_, idx) => ({
+        fieldId: `u_pad_${idx}`,
+        label: `自定义附加项${idx}`,
+        section: "skills",
+        controlType: "text",
+      })),
+      {
+        fieldId: "u_status",
+        label: "目前求职身份",
+        section: "intention",
+        controlType: "custom-select",
+        options: ["社招在职", "2026届应届毕业生", "海外留学生"],
+      },
+    ];
+
+    const llmOut = await mapUnmatchedFieldsWithLLM(bulkFields, sample, {
+      enabled: true,
+      baseUrl: `http://127.0.0.1:${port}/v1`,
+      apiKey: "test-key-123",
+      model: "glm-4-flash",
+      allowOpenEndedDraft: false,
+    });
+
+    assert.equal(requestCount, 2, "超过 20 个未匹配字段应自动拆分为 2 批请求");
+    const mMap = new Map(llmOut.matched.map((m) => [m.fieldId, m]));
+    assert.equal(mMap.get("u_birth").value, "2003/05/18");
+    assert.equal(mMap.get("u_tel").value, "13800138000");
+    assert.equal(mMap.get("u_status").value, "2026届应届毕业生");
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+
   console.log("ALL UNIT TESTS PASSED!");
 }
 
-runTests();
+runTests().catch((err) => {
+  console.error("UNIT TEST FAILED:", err);
+  process.exit(1);
+});

@@ -101,6 +101,9 @@ export function buildFieldMappingMessages(unmatchedFields, profile, llmConfig) {
     fieldId: f.fieldId,
     label: f.label || "",
     placeholder: f.placeholder || "",
+    contextHint: f.contextHint && f.contextHint !== f.label ? f.contextHint : "",
+    name: f.name || "",
+    required: Boolean(f.required),
     section: f.section || "basic",
     entryIndex: Number.isInteger(f.entryIndex) ? f.entryIndex : 0,
     controlType: f.controlType || "text",
@@ -113,11 +116,12 @@ export function buildFieldMappingMessages(unmatchedFields, profile, llmConfig) {
     "严格规则：",
     "1. 只能输出一个 JSON 对象：{\"mappings\": [...]}，不要附加任何解释文字。",
     "2. 每条映射格式：{\"fieldId\": string, \"sourcePath\": string|null, \"filledValue\": string|null, \"confidence\": number, \"reason\": string}。",
-    "3. 如果字段对应隐私信息（如 basic.name, basic.phone, basic.email, basic.idNumber 等），请只填写 sourcePath，把 filledValue 设为 null，客户端会在本地填入真实值。",
-    "4. 如果字段有 options 候选列表，filledValue 必须严格等于 options 中的某一项字符串；若无法判断则跳过不要乱选。",
+    "3. 如果字段对应候选人资料（无论是隐私信息 basic.name/phone/email/idNumber 还是 education[i]/internships[i]/projects[i] 等），请优先填写准确的 sourcePath（注意匹配 entryIndex 索引，如 education[1].school），并把隐私项的 filledValue 设为 null，客户端会在本地安全还原真实值。",
+    "4. 如果字段有 options 候选列表，filledValue 必须严格等于 options 中的某一项字符串；若为 custom-select 且 options 为空，可填最常见的合理中文值（如 \"应届生\"、\"统招全日制\"、\"是\"）或 sourcePath，客户端将在展开下拉框后自动模糊匹配。",
+    "5. 结合 label、placeholder、contextHint、name 与 section 综合判断；若 label 为空但 contextHint 能明确看出字段含义，也可精准映射。",
     llmConfig.allowOpenEndedDraft
-      ? "5. 对于开放性长文本问题（如为什么加入我们），可结合候选人非隐私经历生成简洁中文草稿填入 filledValue，并把 confidence 设为 0.65 以提醒用户复核。"
-      : "5. 对于没有明确依据的开放性问题、期望薪资、主观判断题，不要编造，直接忽略（不要出现在 mappings 中）。",
+      ? "6. 对于开放性长文本问题（如为什么加入我们），可结合候选人非隐私经历生成简洁中文草稿填入 filledValue，并把 confidence 设为 0.65 以提醒用户复核。"
+      : "6. 对于没有明确依据的开放性问题、期望薪资、主观判断题或密码/验证码，不要编造，直接忽略（不要出现在 mappings 中）。",
   ].join("\n");
 
   const userPrompt = JSON.stringify(
@@ -136,8 +140,10 @@ export function buildFieldMappingMessages(unmatchedFields, profile, llmConfig) {
   ];
 }
 
+const LLM_CHUNK_SIZE = 20;
+
 /**
- * 使用 LLM 为未命中规则的字段生成映射并本地还原真实值。
+ * 使用 LLM 为未命中规则的字段分批生成映射并本地还原真实值。
  */
 export async function mapUnmatchedFieldsWithLLM(unmatchedFields, profile, llmConfig) {
   if (!llmConfig?.enabled || !Array.isArray(unmatchedFields) || unmatchedFields.length === 0) {
@@ -145,16 +151,28 @@ export async function mapUnmatchedFieldsWithLLM(unmatchedFields, profile, llmCon
   }
 
   const fieldMap = new Map(unmatchedFields.map((f) => [f.fieldId, f]));
-  const messages = buildFieldMappingMessages(unmatchedFields, profile, llmConfig);
-  const rawReply = await callChatCompletion(llmConfig, messages, { temperature: 0.1 });
-  const parsed = extractJsonFromText(rawReply);
+  const allItems = [];
 
-  const items = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.mappings) ? parsed.mappings : [];
+  for (let i = 0; i < unmatchedFields.length; i += LLM_CHUNK_SIZE) {
+    const chunk = unmatchedFields.slice(i, i + LLM_CHUNK_SIZE);
+    const messages = buildFieldMappingMessages(chunk, profile, llmConfig);
+    const rawReply = await callChatCompletion(llmConfig, messages, { temperature: 0.1 });
+    const parsed = extractJsonFromText(rawReply);
+    const chunkItems = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray(parsed?.mappings)
+        ? parsed.mappings
+        : [];
+    allItems.push(...chunkItems);
+  }
+
   const matched = [];
   const matchedIds = new Set();
 
-  for (const item of items) {
-    if (!item || !item.fieldId || !fieldMap.has(item.fieldId)) continue;
+  for (const item of allItems) {
+    if (!item || !item.fieldId || !fieldMap.has(item.fieldId) || matchedIds.has(item.fieldId)) {
+      continue;
+    }
     const field = fieldMap.get(item.fieldId);
 
     let finalValue = item.filledValue != null ? String(item.filledValue).trim() : "";
@@ -164,7 +182,10 @@ export async function mapUnmatchedFieldsWithLLM(unmatchedFields, profile, llmCon
     if (!finalValue && sourcePath) {
       const localRaw = getProfileValue(profile, sourcePath);
       if (localRaw) {
-        finalValue = prepareFieldValue(localRaw, field, { isDate: /Date$/.test(sourcePath) }) || "";
+        finalValue =
+          prepareFieldValue(localRaw, field, {
+            isDate: /Date$|birthday|availableDate/i.test(sourcePath),
+          }) || "";
       }
     }
 
@@ -185,7 +206,7 @@ export async function mapUnmatchedFieldsWithLLM(unmatchedFields, profile, llmCon
     matchedIds.add(field.fieldId);
     matched.push({
       fieldId: field.fieldId,
-      label: field.label || field.placeholder || field.fieldId,
+      label: field.label || field.contextHint || field.placeholder || field.fieldId,
       sourcePath: sourcePath || "llm-semantic",
       value: finalValue,
       confidence,

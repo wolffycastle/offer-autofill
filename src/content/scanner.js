@@ -68,6 +68,7 @@
       registerField(wrapper, {
         label: labelInfo.label,
         placeholder: labelInfo.placeholder,
+        contextHint: h.extractContextHint(wrapper),
         required: labelInfo.required,
         section,
         entryIndex,
@@ -106,6 +107,7 @@
       registerField(rg, {
         label: labelInfo.label,
         placeholder: "",
+        contextHint: h.extractContextHint(rg),
         required: labelInfo.required,
         section,
         entryIndex,
@@ -149,6 +151,7 @@
       registerField(groupRadios[0].parentElement || groupRadios[0], {
         label: labelInfo.label,
         placeholder: "",
+        contextHint: h.extractContextHint(anchor),
         required: labelInfo.required,
         section,
         entryIndex,
@@ -210,6 +213,7 @@
       registerField(el, {
         label: labelInfo.label,
         placeholder: labelInfo.placeholder,
+        contextHint: h.extractContextHint(el),
         required: labelInfo.required,
         section,
         entryIndex,

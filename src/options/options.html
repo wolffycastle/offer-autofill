@@ -173,15 +173,26 @@
           <div class="card">
             <h2>大模型 API 语义兜底设置（OpenAI 兼容接口）</h2>
             <p class="desc">
-              本地同义词规则未命中的特殊字段（如非标下拉框或少见标签），可交由大模型推理匹配；强隐私字段（姓名、电话、身份证、邮箱）不会发给外部模型。
+              本地同义词规则未命中的特殊字段（如各家官网五花八门的自定义下拉框或少见标签），开启大模型后会自动按语义通用匹配；强隐私字段（姓名、电话、身份证、邮箱）不会发给外部模型。
             </p>
+            <div class="guide-box">
+              <strong>💡 零成本/低门槛接入推荐（任选其一，1 分钟搞定）：</strong>
+              <ul>
+                <li><strong>智谱开放平台（推荐·有免费模型）</strong>：注册 <code>bigmodel.cn</code> 创建 API Key，预设选 <code>智谱 (glm-4-flash 免费)</code>。</li>
+                <li><strong>硅基流动 SiliconFlow（推荐·有免费模型）</strong>：注册 <code>siliconflow.cn</code> 创建 API Key，预设选 <code>硅基流动 (Qwen2.5-7B 免费)</code>。</li>
+                <li><strong>DeepSeek / 通义千问</strong>：充值几元即可按量跑数千页网申表，通用准确率极高。</li>
+                <li><strong>本地 Ollama（纯离线免费）</strong>：本机启动 <code>ollama serve</code> 后无需填 API Key。</li>
+              </ul>
+            </div>
             <div class="grid-2">
               <label class="field">
                 <span>快速预设平台</span>
                 <select id="llmPresetSelect">
                   <option value="">自定义...</option>
+                  <option value="zhipu">智谱 BigModel (glm-4-flash 免费)</option>
+                  <option value="siliconflow">硅基流动 SiliconFlow (Qwen2.5-7B 免费)</option>
                   <option value="deepseek">DeepSeek (deepseek-chat)</option>
-                  <option value="qwen">阿里通义千问 DashScope (qwen-plus)</option>
+                  <option value="qwen">阿里通义千问 DashScope (qwen-turbo)</option>
                   <option value="kimi">Kimi / Moonshot (moonshot-v1-8k)</option>
                   <option value="openai">OpenAI (gpt-4o-mini)</option>
                   <option value="ollama">本地 Ollama (http://localhost:11434/v1)</option>

@@ -159,6 +159,29 @@ body {
   line-height: 1.5;
 }
 
+.guide-box {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: #1e3a8a;
+  line-height: 1.6;
+}
+
+.guide-box ul {
+  margin: 6px 0 0 18px;
+  padding: 0;
+}
+
+.guide-box code {
+  background: rgba(255, 255, 255, 0.75);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
 .grid-3 {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

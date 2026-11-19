@@ -598,6 +598,21 @@
     return isPlaceholderText(val) ? "" : val;
   }
 
+  function extractContextHint(el) {
+    if (!el || !el.isConnected) return "";
+    let scope = el.parentElement;
+    for (let i = 0; i < 4 && scope && scope.parentElement && scope.parentElement !== document.body; i++) {
+      if (countDistinctFormFields(scope.parentElement) >= 2) break;
+      scope = scope.parentElement;
+    }
+    if (!scope) return "";
+    const clone = scope.cloneNode(true);
+    clone
+      .querySelectorAll("input, textarea, select, button, [role='listbox'], [role='option']")
+      .forEach((n) => n.remove());
+    return cleanText(clone.textContent).slice(0, 80);
+  }
+
   ns.domHelpers = {
     isVisible,
     cleanText,
@@ -605,6 +620,7 @@
     setNativeValue,
     findBestOptionMatch,
     extractLabelInfo,
+    extractContextHint,
     classifySectionFromText,
     getSectionContainer,
     detectEntryIndex,

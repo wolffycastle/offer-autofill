@@ -20,10 +20,12 @@ import {
 } from "../shared/storage.js";
 
 const LLM_PRESETS = {
+  zhipu: { baseUrl: "https://open.bigmodel.cn/api/paas/v4", model: "glm-4-flash" },
+  siliconflow: { baseUrl: "https://api.siliconflow.cn/v1", model: "Qwen/Qwen2.5-7B-Instruct" },
   deepseek: { baseUrl: "https://api.deepseek.com/v1", model: "deepseek-chat" },
   qwen: {
     baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
-    model: "qwen-plus",
+    model: "qwen-turbo",
   },
   kimi: { baseUrl: "https://api.moonshot.cn/v1", model: "moonshot-v1-8k" },
   openai: { baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini" },
@@ -61,14 +63,20 @@ function renderAll() {
 
 function bindNavigation() {
   const navBtns = document.querySelectorAll(".nav-item");
+  const activateView = (viewName) => {
+    navBtns.forEach((b) => b.classList.toggle("active", b.dataset.view === viewName));
+    document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
+    document.getElementById(`view-${viewName}`)?.classList.add("active");
+  };
+
   navBtns.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      navBtns.forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
-      document.getElementById(`view-${btn.dataset.view}`)?.classList.add("active");
-    });
+    btn.addEventListener("click", () => activateView(btn.dataset.view));
   });
+
+  const hashView = location.hash.replace(/^#/, "");
+  if (hashView && document.getElementById(`view-${hashView}`)) {
+    activateView(hashView);
+  }
 }
 
 function renderProfileToolbar() {
@@ -497,13 +505,20 @@ function bindLlmEvents() {
     if (!preset) return;
     document.getElementById("llmBaseUrl").value = preset.baseUrl;
     document.getElementById("llmModel").value = preset.model;
+    document.getElementById("llmEnabled").checked = true;
   });
 
   document.getElementById("saveLlmBtn").addEventListener("click", async () => {
     const cfg = collectLlmConfigFromUi();
+    if (!cfg.enabled && (cfg.apiKey || /localhost|127\.0\.0\.1/.test(cfg.baseUrl))) {
+      cfg.enabled = true;
+      document.getElementById("llmEnabled").checked = true;
+    }
     appState.llmConfig = cfg;
     await saveLlmConfig(cfg);
-    document.getElementById("llmTestStatus").textContent = "已保存大模型配置 ✓";
+    document.getElementById("llmTestStatus").textContent = cfg.enabled
+      ? "已保存并启用大模型兜底 ✓"
+      : "已保存大模型配置 ✓";
   });
 
   document.getElementById("testLlmBtn").addEventListener("click", async () => {

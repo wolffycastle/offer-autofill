@@ -152,9 +152,15 @@ function renderPreferences() {
   if (llmReady) {
     els.llmStatusPill.className = "pill pill-ai";
     els.llmStatusPill.textContent = `AI 兜底 · ${appState.llmConfig.model || "已启用"}`;
+    els.llmStatusPill.style.cursor = "default";
+    els.llmStatusPill.onclick = null;
   } else {
     els.llmStatusPill.className = "pill pill-muted";
-    els.llmStatusPill.textContent = "仅本地规则（AI已预留）";
+    els.llmStatusPill.textContent = "未配 AI · 去免费开启 →";
+    els.llmStatusPill.style.cursor = "pointer";
+    els.llmStatusPill.onclick = () => {
+      chrome.tabs.create({ url: chrome.runtime.getURL("src/options/options.html#settings") });
+    };
   }
 }
 
@@ -532,7 +538,9 @@ function renderDetailList(report) {
     const isUnmatched = item._kind === "unmatched";
     div.innerHTML = `
       <div class="detail-top">
-        <span class="detail-name">${escapeHtml(item.label || item.placeholder || item.fieldId)}</span>
+        <span class="detail-name">${escapeHtml(
+          item.label || item.contextHint || item.placeholder || item.fieldId
+        )}</span>
         <span class="badge ${isUnmatched ? "badge-warn" : "badge-skip"}">${
           isUnmatched ? "未匹配" : "已跳过"
         }</span>
